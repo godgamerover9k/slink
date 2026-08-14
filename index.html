@@ -56,8 +56,14 @@ button{font:inherit;color:inherit}
 .linkbtn:hover{color:var(--graphite);border-color:var(--graphite)}
 
 /* ---------- layout ---------- */
-.stage{display:grid;grid-template-columns:minmax(0,1fr) 268px;gap:26px;align-items:start;flex:1}
+.stage{display:grid;grid-template-columns:minmax(0,1fr) 250px 268px;gap:22px;align-items:start;flex:1}
+/* Below this the branch column folds back in with the rest of the panel. */
+@media (max-width:1180px){.stage{grid-template-columns:minmax(0,1fr) 268px}}
 @media (max-width:860px){.stage{grid-template-columns:minmax(0,1fr);gap:16px}}
+.branchcol{display:flex;flex-direction:column;gap:18px;position:sticky;top:18px}
+@media (max-width:1180px){.branchcol{position:static}}
+/* room for it now that it has a column to itself */
+@media (min-width:1181px){.tree{max-height:min(58vh,520px)}}
 
 .sheet{
   max-width:min(100%,74vh);margin-inline:auto;
@@ -219,6 +225,13 @@ body.trialing #board{cursor:cell}
 .clue.over{fill:var(--pen-2)}
 .seg{stroke-linecap:round;stroke-width:5;opacity:0;transition:opacity .09s}
 .seg.on{opacity:1}
+/* An alternative reading of the same board: a drawn line is bold, an
+   undecided one is a thin ghost, and a ruled-out one simply is not there.
+   Nothing about the controls changes — only what you see. */
+body.weighted .xm{display:none}
+body.weighted .seg{opacity:1;stroke-width:1;stroke:var(--rule)}
+body.weighted .seg.on{stroke-width:6}
+body.weighted .seg.off{opacity:0}
 .xm{stroke:var(--x-mark);stroke-width:2;stroke-linecap:round;opacity:0;transition:opacity .09s}
 .xm.on{opacity:1}
 #board:focus-visible{outline:2px solid var(--graphite);outline-offset:3px}
@@ -244,6 +257,10 @@ body.trialing #board{cursor:cell}
   background:var(--sheet-shade);font-size:11.5px;line-height:1.55}
 .outside{fill:var(--mark-blue)}
 .inside{fill:var(--sheet)}
+.rel{stroke:var(--graphite);stroke-width:1.6;opacity:.75;stroke-linecap:round}
+.rel--s{stroke-dasharray:none}
+.rel--d{stroke-dasharray:5 3}
+.rel--tick{stroke-width:2.2;opacity:.9;stroke-dasharray:none}
 .dg{stroke:var(--graphite);stroke-width:2;stroke-linecap:round;opacity:.55}
 .fillsq{opacity:0;transition:opacity .1s}
 .fillsq.on{opacity:1}
@@ -279,6 +296,8 @@ body.trialing #board{cursor:cell}
         <span id="sizeline"></span>
       </div>
     </main>
+
+    <aside class="branchcol" id="branchcol"></aside>
 
     <aside class="panel">
       <section class="block">
@@ -323,6 +342,7 @@ body.trialing #board{cursor:cell}
         <div class="toggles" style="margin-top:13px">
           <label class="tgl"><input type="checkbox" id="optDim" checked><span class="tgl__box"></span>Fade satisfied clues</label>
           <label class="tgl"><input type="checkbox" id="optPremise" checked><span class="tgl__box"></span>Circle branch premises</label>
+          <label class="tgl"><input type="checkbox" id="optWeight"><span class="tgl__box"></span>Show ×s as absent lines</label>
         </div>
       </section>
 
@@ -1325,6 +1345,7 @@ function blankRoom(code,puz){
   const gg=Engine(puz.R,puz.C);
   return {
     v:1, code, R:puz.R, C:puz.C, diff:puz.diff, gen:Date.now(),
+    owner:me?me.id:null, ownerName:me?me.name:"",
     given:puz.given, minimal:!!puz.minimal, clues:puz.clues,
     edges:"0".repeat(gg.E),
     et:new Array(gg.E).fill(0),
@@ -1333,6 +1354,7 @@ function blankRoom(code,puz){
     ct:new Array(gg.NC).fill(0),
     diag:"0".repeat(gg.NC),
     dt:new Array(gg.NC).fill(0),
+    rels:{}, rt:{},                 // "a:b" -> "s" same side | "d" opposite
     players:[], solvedAt:null, now:Date.now()
   };
 }
@@ -1354,10 +1376,20 @@ function ensureCells(r){
   if(!Array.isArray(r.ct)||r.ct.length!==n)r.ct=new Array(n).fill(0);
   if(typeof r.diag!=="string"||r.diag.length!==n)r.diag="0".repeat(n);
   if(!Array.isArray(r.dt)||r.dt.length!==n)r.dt=new Array(n).fill(0);
+  if(!r.rels||typeof r.rels!=="object")r.rels={};
+  if(!r.rt||typeof r.rt!=="object")r.rt={};
   return r;
 }
 
 function applyOp(r,op){
+  if(op.r!==undefined){            // a claim about two squares
+    ensureCells(r);
+    const k=op.r;
+    if(op.t<=(r.rt[k]||0))return false;
+    if(op.val==="0")delete r.rels[k]; else r.rels[k]=op.val;
+    r.rt[k]=op.t;
+    return true;
+  }
   if(op.d!==undefined){            // diagonal scribble, no gameplay effect
     ensureCells(r);
     const k=op.d;
@@ -1419,6 +1451,13 @@ function adopt(remote){
     if(remote.dt[k]>room.dt[k]){
       room.diag=room.diag.slice(0,k)+remote.diag[k]+room.diag.slice(k+1);
       room.dt[k]=remote.dt[k];
+    }
+  }
+  for(const key in remote.rt){
+    if((remote.rt[key]||0)>(room.rt[key]||0)){
+      if(remote.rels[key])room.rels[key]=remote.rels[key];
+      else delete room.rels[key];
+      room.rt[key]=remote.rt[key];
     }
   }
   // the sheet is in room.* right now, so capture it before anything re-derives
@@ -1539,6 +1578,26 @@ function queueOp(e,val){
   return true;
 }
 
+/* A claim that two squares lie on the same side of the loop, or on opposite
+   sides. Unlike a colour it says nothing about which side is which. */
+function relKey(a,b){ return a<b?a+":"+b:b+":"+a; }
+
+function queueRel(key,val){
+  ensureCells(room);
+  const v=String(val);
+  if((room.rels[key]||"0")===v)return false;
+  if(trial){
+    if(v==="0")delete room.rels[key]; else room.rels[key]=v;
+    recordMark(trial,"rel",key,v);
+    return true;
+  }
+  const op={r:key,val:v,t:now()};
+  if(!applyOp(room,op))return false;
+  pending.push(op); recent.push(op);
+  clearTimeout(flushTimer); flushTimer=setTimeout(flush,FLUSH_MS);
+  return true;
+}
+
 function queueDiag(k,val){
   ensureCells(room);
   const v=String(val);
@@ -1597,7 +1656,7 @@ async function updateIndex(){
 const S=34, PAD=22;
 const board=document.getElementById("board");
 let segEls=[], xEls=[], clueEls=[], dotEls=[], badEls=[], fillEls=[];
-let traceEl=null, premGroup=null, gDiag=null, gBoard=null;
+let traceEl=null, premGroup=null, gDiag=null, gBoard=null, gRel=null;
 
 function edgeGeom(i){
   const {R,C,HN}=g;
@@ -1652,11 +1711,12 @@ function buildBoard(){
   }
   traceEl=mk("path",{class:"trace",d:""});
   premGroup=mk("g");
+  gRel=mk("g");
   /* Bottom to top: paper, colour fills, diagonal scribbles, the error wash,
      then x marks and lines, then premise rings (which must stay visible even
      when they circle a drawn line), and finally the dots and clue numbers so
      nothing an annotation draws can bury the puzzle's own information. */
-  board.append(gBoard,gFill,gDiag,gBad,gX,gSeg,premGroup,gDot,gClue,traceEl);
+  board.append(gBoard,gFill,gDiag,gBad,gX,gSeg,gRel,premGroup,gDot,gClue,traceEl);
 }
 
 /* nearest segment to a point, or -1 */
@@ -1709,17 +1769,22 @@ function loopStatus(edges){
   return {on,solved:true};
 }
 
-let dimClues=true;
+let dimClues=true, weighted=false;
 
 function render(){
   if(!room||!g)return;
   const {E,NC}=g;
+  /* Pen colours exist to tell people apart. On your own there is nobody to
+     tell apart, so the sheet reads better in plain graphite. */
+  const soloPen=(room.players||[]).filter(p=>now()-p.seen<IDLE_MS).length<2;
+
   for(let i=0;i<E;i++){
     const s=room.edges[i];
     const seg=segEls[i];
-    if(s==="1"){ seg.classList.add("on"); seg.setAttribute("stroke",penVar(room.eo[i])); }
+    if(s==="1"){ seg.classList.add("on"); seg.setAttribute("stroke",soloPen?"var(--graphite)":penVar(room.eo[i])); }
     else seg.classList.remove("on");
     xEls[i].classList.toggle("on",s==="2");
+    seg.classList.toggle("off",s==="2");     // "ruled out" in the weighted view
 
   }
   ensureCells(room);
@@ -1756,12 +1821,44 @@ function render(){
   if(trial&&info.solved&&!trial.doneShown){ trial.doneShown=true; celebrate(); showDone(true); }
 
   paintDiagonals();
+  paintRels();
   renderRack();
   renderReadout(info);
   renderTrial();
+  applyOwnerRules();
 }
 
 const MARK_FILL={"1":"var(--mark-blue)","2":"var(--mark-yellow)"};
+
+/* A claim is drawn as a tie between the two squares: a plain line for "same
+   side", one with a break through it for "opposite sides". */
+function paintRels(){
+  if(!gRel)return;
+  while(gRel.firstChild)gRel.removeChild(gRel.firstChild);
+  ensureCells(room);
+  const NS="http://www.w3.org/2000/svg";
+  const mid=k=>({x:PAD+(k%g.C)*S+S/2,y:PAD+((k/g.C)|0)*S+S/2});
+  for(const key in room.rels){
+    const [a,b]=key.split(":").map(Number);
+    if(!(a>=0&&b>=0&&a<g.NC&&b<g.NC))continue;
+    const p=mid(a),q=mid(b);
+    const l=document.createElementNS(NS,"line");
+    l.setAttribute("x1",p.x); l.setAttribute("y1",p.y);
+    l.setAttribute("x2",q.x); l.setAttribute("y2",q.y);
+    l.setAttribute("class","rel rel--"+room.rels[key]);
+    gRel.appendChild(l);
+    if(room.rels[key]==="d"){          // a break, meaning "not the same"
+      const cx=(p.x+q.x)/2, cy=(p.y+q.y)/2;
+      const dx=q.x-p.x, dy=q.y-p.y, len=Math.hypot(dx,dy)||1;
+      const nx=-dy/len*S*0.16, ny=dx/len*S*0.16;
+      const t=document.createElementNS(NS,"line");
+      t.setAttribute("x1",cx-nx); t.setAttribute("y1",cy-ny);
+      t.setAttribute("x2",cx+nx); t.setAttribute("y2",cy+ny);
+      t.setAttribute("class","rel rel--tick");
+      gRel.appendChild(t);
+    }
+  }
+}
 
 function paintDiagonals(){
   if(!gDiag)return;
@@ -1838,6 +1935,10 @@ function showDone(fromBranch){
 document.getElementById("doneStay").onclick=()=>{document.getElementById("done").hidden=true;};
 document.getElementById("doneNew").onclick=()=>{
   document.getElementById("done").hidden=true;
+  if(!isOwner()){
+    toast("Only "+ownerLabel()+" can change this puzzle — leave to start your own");
+    return;
+  }
   clearBranches(); openSetup(true);
 };
 /* a completed branch is proven, not a guess, so it may go on the sheet */
@@ -1899,9 +2000,12 @@ const BLUE="1", YELLOW="2", NOFILL="0";
 const toggleTo=(current,want)=>current===want?BLANK:want;
 
 let dragVal=null, dragWant=null, dragSeen=null, dragMode=null, dragVert=null, stroke=null, undoStack=[], redoStack=[];
-let dragLast=null, dragFrom=null, diagHeld=false;
+let dragLast=null, dragFrom=null, diagHeld=false, relHeld=false, relFrom=-1, relWantSame=false;
 
 /* hold D for diagonal scribbles */
+window.addEventListener("keydown",e=>{ if(e.key==="r"||e.key==="R")relHeld=true; });
+window.addEventListener("keyup",e=>{ if(e.key==="r"||e.key==="R")relHeld=false; });
+window.addEventListener("blur",()=>{relHeld=false;});
 window.addEventListener("keydown",e=>{ if(e.key==="d"||e.key==="D")diagHeld=true; });
 window.addEventListener("keyup",e=>{ if(e.key==="d"||e.key==="D")diagHeld=false; });
 
@@ -1953,6 +2057,17 @@ function setEdgeUser(i,val,intoStroke){
   return true;
 }
 
+function setRelUser(key,val){
+  ensureCells(room);
+  const before=room.rels[key]||"0";
+  if(before===val)return false;
+  if(!queueRel(key,val))return false;
+  undoStack.push([{r:key,from:before,to:val}]);
+  redoStack=[];
+  render();
+  return true;
+}
+
 function setDiagUser(k,val,intoStroke){
   ensureCells(room);
   const before=room.diag[k];
@@ -1981,7 +2096,8 @@ function setCellUser(k,val,intoStroke){
 
 /* replay one undo/redo step, whichever kind of mark it was */
 function applyStep(step,val){
-  if(step.d!==undefined)queueDiag(step.d,val);
+  if(step.r!==undefined)queueRel(step.r,val);
+  else if(step.d!==undefined)queueDiag(step.d,val);
   else if(step.k!==undefined)queueCell(step.k,val);
   else queueOp(step.e,val);
 }
@@ -2064,7 +2180,7 @@ board.addEventListener("wheel",e=>{
 
 /* arrow keys nudge the sheet when it is bigger than the window */
 window.addEventListener("keydown",e=>{
-  if(!room||!veil.hidden===false)return;
+  if(!room||!veil.hidden)return;      // only while the setup card is closed
   if(/input|textarea/i.test((e.target||{}).tagName||""))return;
   const NUDGE={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[e.key];
   if(!NUDGE||view.w>=viewFull.w-0.5)return;
@@ -2099,6 +2215,15 @@ board.addEventListener("pointerdown",e=>{
   if(!room||room.solvedAt)return;
   if(panning||spaceHeld||e.button===1)return;
   const p=svgPoint(e);
+
+  if(relHeld){                                 // claim about two squares
+    const k=cellAt(p.x,p.y);
+    if(k<0)return;
+    e.preventDefault();
+    board.setPointerCapture(e.pointerId);
+    relFrom=k; dragMode="rel"; relWantSame=e.shiftKey;
+    return;
+  }
 
   if(diagHeld){                                // diagonal scribble, purely cosmetic
     const k=cellAt(p.x,p.y);
@@ -2182,7 +2307,19 @@ board.addEventListener("pointermove",e=>{
   }
   alongDrag(p,(x,y)=>dragTo(vertAt(x,y)));
 });
-const endDrag=()=>{
+const endDrag=e=>{
+  if(dragMode==="rel"){
+    const p=e&&e.clientX!==undefined?svgPoint(e):null;
+    const to=p?cellAt(p.x,p.y):-1;
+    if(to>=0&&to!==relFrom){
+      const key=relKey(relFrom,to);
+      const want=relWantSame?"s":"d";
+      // the same claim twice takes it away, like every other mark
+      setRelUser(key,(room.rels[key]||"0")===want?"0":want);
+    }
+    relFrom=-1; dragMode=null; stroke=null;
+    return;
+  }
   // a D-click that never moved still leaves a mark, slanting one way by default
   if(dragMode==="diag"&&stroke&&!stroke.length&&dragFrom){
     const k=cellAt(dragFrom.x,dragFrom.y);
@@ -2248,15 +2385,17 @@ const negate=p=>p.to==="0"?p.from:FLIP[p.to];
 
 function boardSnapshot(){
   ensureCells(room);
-  return {edges:room.edges,cells:room.cells,diag:room.diag,eo:room.eo.slice()};
+  return {edges:room.edges,cells:room.cells,diag:room.diag,
+          rels:Object.assign({},room.rels),eo:room.eo.slice()};
 }
 function loadSnapshot(s){
   room.edges=s.edges; room.cells=s.cells; room.eo=s.eo.slice();
   if(typeof s.diag==="string")room.diag=s.diag;
+  if(s.rels)room.rels=Object.assign({},s.rels);
 }
 
 /* ---- shared tree: room.tree is a flat map of id -> branch record ---- */
-const MARK_KEY={edge:"e",cell:"k",diag:"d"};
+const MARK_KEY={edge:"e",cell:"k",diag:"d",rel:"r"};
 const MARK_STR={e:"edges",k:"cells",d:"diag"};
 
 function ensureTree(r){
@@ -2325,12 +2464,16 @@ function refreshBase(){ if(trial)trial.baseBoard=baseBoardOf(trial); }
 function deriveBoard(node){
   const base=trunk.saved||boardSnapshot();
   let edges=base.edges, cells=base.cells, diag=base.diag;
+  const rels=Object.assign({},base.rels||{});
   const put=(str,idx,val)=>str.slice(0,idx)+val+str.slice(idx+1);
   for(const n of chainOf(node)){
     const m=n.marks||{};
     for(const i in (m.e||{})) edges=put(edges,+i,m.e[i]);
     for(const i in (m.k||{})) cells=put(cells,+i,m.k[i]);
     for(const i in (m.d||{})) diag=put(diag,+i,m.d[i]);
+    for(const key in (m.r||{})){
+      if(m.r[key]==="0")delete rels[key]; else rels[key]=m.r[key];
+    }
   }
   const eo=base.eo?base.eo.slice():room.eo.slice();
   for(const n of chainOf(node)){
@@ -2338,7 +2481,7 @@ function deriveBoard(node){
     for(const i in ((n.marks||{}).e||{}))
       if(n.marks.e[i]==="1")eo[+i]=own;
   }
-  return {edges,cells,diag,eo};
+  return {edges,cells,diag,rels,eo};
 }
 function recordMark(node,kind,idx,val){
   const key=MARK_KEY[kind];
@@ -2366,6 +2509,7 @@ function cellsAtVert(v,into){
    `st` lets a parked branch be judged without loading it. */
 function findTrouble(st){
   const edges=(st||room).edges, cells=(st||room).cells;
+  void cells;
   const bad=new Set(), msgs=[];
   if(!edges)return {bad,msgs,solved:false};
   const {E,VC,NC}=g, deg=new Int8Array(VC);
@@ -2379,13 +2523,70 @@ function findTrouble(st){
     if(on>want){ bad.add(k); msgs.push("a clue has more lines than its number"); }
     else if(on+free<want){ bad.add(k); msgs.push("a clue can no longer reach its number"); }
   }
+  /* Everything the board says about which side of the loop a square is on,
+     resolved together: a drawn line means the squares either side are on
+     opposite sides, a ruled-out edge means they are on the same side, a colour
+     pins a square to one side outright, and the player's own claims tie two
+     squares together. Union-find with a parity bit, so a contradiction
+     anywhere in the chain is found rather than only between neighbours. */
+  {
+    const C=g.C, N=NC+1, OUT=NC;          // one extra node standing for "blue"
+    const parent=new Int32Array(N), rank=new Int32Array(N), par=new Uint8Array(N);
+    for(let i=0;i<N;i++)parent[i]=i;
+    const find=x=>{                        // returns [root, parity to root]
+      let p=0,r=x;
+      while(parent[r]!==r){ p^=par[r]; r=parent[r]; }
+      let cur=x,cp=p;
+      while(parent[cur]!==cur){            // path compression, parity kept
+        const nx=parent[cur], np=cp^par[cur];
+        parent[cur]=r; par[cur]=cp;
+        cur=nx; cp=np;
+      }
+      return [r,p];
+    };
+    const join=(a,b,diff,why)=>{
+      const [ra,pa]=find(a),[rb,pb]=find(b);
+      if(ra===rb){
+        if(((pa^pb)&1)!==(diff&1)){ bad.add(a<NC?a:b); if(b<NC)bad.add(b); msgs.push(why); }
+        return;
+      }
+      const need=(pa^pb^diff)&1;
+      if(rank[ra]<rank[rb]){ parent[ra]=rb; par[ra]=need; }
+      else{ parent[rb]=ra; par[rb]=need; if(rank[ra]===rank[rb])rank[ra]++; }
+    };
+
+    for(let k=0;k<NC;k++){
+      const r=(k/C)|0,c=k%C;
+      if(c+1<C){
+        const e=g.V(r,c+1);
+        if(edges[e]==="1")join(k,k+1,1,"a line has the same colour on both sides");
+        else if(edges[e]==="2")join(k,k+1,0,"two colours meet with no line between them");
+      }
+      if(r+1<g.R){
+        const e=g.H(r+1,c);
+        if(edges[e]==="1")join(k,k+C,1,"a line has the same colour on both sides");
+        else if(edges[e]==="2")join(k,k+C,0,"two colours meet with no line between them");
+      }
+      const col=cells?cells[k]:"0";
+      if(col==="1")join(k,OUT,0,"a colour disagrees with the lines around it");
+      else if(col==="2")join(k,OUT,1,"a colour disagrees with the lines around it");
+    }
+    const rels=(st||room).rels||{};
+    for(const key in rels){
+      const [a,b]=key.split(":").map(Number);
+      if(!(a>=0&&b>=0&&a<NC&&b<NC))continue;
+      join(a,b,rels[key]==="d"?1:0,
+        rels[key]==="d"?"two squares claimed opposite are forced the same"
+                       :"two squares claimed alike are forced apart");
+    }
+  }
+
   const info=loopStatus(edges);
   if(anyLine&&!info.solved){
     let closed=true;
     for(let v=0;v<VC;v++) if(deg[v]!==0&&deg[v]!==2){closed=false;break;}
     if(closed)msgs.push("the loop closes early, leaving the sheet unfinished");
   }
-  void cells;
   return {bad,msgs:[...new Set(msgs)],solved:info.solved};
 }
 
@@ -2591,6 +2792,22 @@ function renderTree(){
     b.title=premise||label;
     if(flag&&flag.kind==="clash")b.classList.add("tw--clash");
     b.onclick=()=>switchBranch(id);
+    b.dataset.branch=(id==null?"":id);
+    /* Up and down step through the list. The board also uses the arrow keys
+       to scroll, so this only applies while a row has focus. */
+    b.onkeydown=e=>{
+      if(e.key!=="ArrowUp"&&e.key!=="ArrowDown")return;
+      e.preventDefault(); e.stopPropagation();
+      const rows=[...box.querySelectorAll(".tw")];
+      const at=rows.indexOf(b);
+      const next=rows[at+(e.key==="ArrowDown"?1:-1)];
+      if(!next)return;
+      const to=next.dataset.branch;
+      switchBranch(to===""?null:to);
+      const again=[...trialEls.tree.querySelectorAll(".tw")]
+        .find(r=>r.dataset.branch===(to===""?"":to));
+      if(again)again.focus();
+    };
     box.appendChild(b);
   };
   /* A branch that overwrites something already decided above it is standing on
@@ -2686,6 +2903,24 @@ trialEls.test.onclick=()=>{
     btn.disabled=false; btn.textContent=label;
   },20);
 };
+
+/* Replacing the puzzle throws away everyone's work, so it belongs to whoever
+   opened the sheet. Rooms made before this existed have no owner recorded and
+   stay open to all. */
+function isOwner(){
+  return !room||!room.owner||(me&&room.owner===me.id);
+}
+function ownerLabel(){
+  return (room&&room.ownerName)?room.ownerName:"whoever opened this sheet";
+}
+function applyOwnerRules(){
+  const btn=document.getElementById("newsheet");
+  if(!btn)return;
+  const mine=isOwner();
+  btn.disabled=!mine;
+  btn.textContent=mine?"Load a new sheet":"Only "+ownerLabel()+" can change the puzzle";
+  btn.title=mine?"":"Leave the sheet to start one of your own.";
+}
 
 /* ============================================================
    7. Tools
@@ -2799,8 +3034,17 @@ document.getElementById("clearfill").onclick=()=>{
 
 document.getElementById("optDim").onchange=e=>{dimClues=e.target.checked;render();};
 document.getElementById("optPremise").onchange=e=>{showPremises=e.target.checked;render();};
+document.getElementById("optWeight").onchange=e=>{
+  weighted=e.target.checked;
+  document.body.classList.toggle("weighted",weighted);
+  render();
+};
 
 document.getElementById("newsheet").onclick=()=>{
+  if(!isOwner()){
+    toast("Only "+ownerLabel()+" can change this puzzle");
+    return;
+  }
   if(!confirm("Load a new sheet for everyone in this room? The current one is cleared."))return;
   clearBranches();
   openSetup(true);
@@ -3290,6 +3534,21 @@ function enterRoom(code){
 /* ============================================================
    9. Boot
    ============================================================ */
+/* The branch list gets its own column when there is room for one, and rejoins
+   the side panel when there isn't. Same element either way, so nothing about
+   it needs to know where it lives. */
+function placeBranchPanel(){
+  const block=document.getElementById("trialBlock");
+  const col=document.getElementById("branchcol");
+  const panel=document.querySelector(".panel");
+  if(!block||!col||!panel)return;
+  const wide=window.innerWidth>1180;
+  col.hidden=!wide;
+  if(wide&&block.parentElement!==col)col.appendChild(block);
+  if(!wide&&block.parentElement!==panel)panel.insertBefore(block,panel.children[2]||null);
+}
+window.addEventListener("resize",placeBranchPanel);
+
 (async function boot(){
   setDims(10,10);
   buildChips();
@@ -3297,6 +3556,7 @@ function enterRoom(code){
   if(saved){ try{ me=JSON.parse(saved.value); }catch(e){} }
   if(!me||!me.id) me={id:uid(),name:""};
   document.getElementById("nameIn").value=me.name||"";
+  placeBranchPanel();
   await store.probe();
   offerExe();
   wireServerBox();
