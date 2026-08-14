@@ -56,7 +56,7 @@ button{font:inherit;color:inherit}
 .linkbtn:hover{color:var(--graphite);border-color:var(--graphite)}
 
 /* ---------- layout ---------- */
-.stage{display:grid;grid-template-columns:minmax(0,1fr) 250px 268px;gap:22px;align-items:start;flex:1}
+.stage{display:grid;grid-template-columns:minmax(0,1fr) 268px 250px;gap:22px;align-items:start;flex:1}
 /* Below this the branch column folds back in with the rest of the panel. */
 @media (max-width:1180px){.stage{grid-template-columns:minmax(0,1fr) 268px}}
 @media (max-width:860px){.stage{grid-template-columns:minmax(0,1fr);gap:16px}}
@@ -151,6 +151,9 @@ body.trialing #board{cursor:cell}
 .tw__flag.bad{color:var(--pen-2)}
 .tw__flag.clash{color:var(--pen-2)}
 .tw--clash .tw__label{color:var(--pen-2)}
+.tw--dragging{opacity:.4}
+.tw--over{box-shadow:inset 0 2px 0 var(--graphite)}
+.tw--under{box-shadow:inset 0 -2px 0 var(--graphite)}
 .tw__flag.good{color:var(--pen-3)}
 /* Marks made on a branch look exactly like any other mark. Which branch a
    mark belongs to is answered by moving through the branch list, so drawing
@@ -245,6 +248,7 @@ body.weighted .seg.off{opacity:0}
 .done__eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.18em;color:var(--muted);margin:0 0 10px}
 .done__title{font-size:24px;line-height:1.15;margin:0 0 10px;letter-spacing:-.01em}
 .done__body{font-size:13px;line-height:1.6;color:var(--muted);margin:0 0 16px}
+.done__body a{color:var(--graphite);text-underline-offset:2px}
 .done__stats{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:20px;
   font-family:var(--mono);font-size:10px;letter-spacing:.09em;color:var(--graphite)}
 .done__stats b{display:block;font-size:17px;letter-spacing:0;margin-top:3px}
@@ -279,6 +283,7 @@ body.weighted .seg.off{opacity:0}
   <header class="masthead">
     <div class="wordmark">Plot Room <span>/ slitherlink</span></div>
     <div class="masthead__spacer"></div>
+    <button class="linkbtn" id="creditsBtn">Credits</button>
     <div class="roomchip" id="roomchip" hidden>
       <span class="tag">Sheet</span><b id="roomcode">····</b>
       <button class="linkbtn" id="copycode" title="Copy the code for someone else to join with">Copy</button>
@@ -296,8 +301,6 @@ body.weighted .seg.off{opacity:0}
         <span id="sizeline"></span>
       </div>
     </main>
-
-    <aside class="branchcol" id="branchcol"></aside>
 
     <aside class="panel">
       <section class="block">
@@ -360,6 +363,38 @@ body.weighted .seg.off{opacity:0}
         </div>
       </section>
     </aside>
+
+    <aside class="branchcol" id="branchcol"></aside>
+  </div>
+</div>
+
+<div class="done" id="credits" hidden>
+  <div class="done__card">
+    <p class="done__eyebrow">CREDITS</p>
+    <h2 class="done__title">Standing on other people's work</h2>
+    <p class="done__body">
+      Slitherlink was devised by <b>Nikoli</b>, the Japanese puzzle publisher
+      that also gave the world Sudoku.
+    </p>
+    <p class="done__body">
+      <b><a href="https://krazydad.com/" target="_blank" rel="noopener noreferrer">Krazydad</a></b>
+      — Jim Bumgardner's puzzle collection. The drawing scheme here follows his:
+      click a segment for a line, click again to take it away, drag to keep
+      going.
+    </p>
+    <p class="done__body">
+      <b><a href="https://jonathanolson.net/slitherlink/play" target="_blank" rel="noopener noreferrer">Jonathan Olson's Slitherlink</a></b>
+      — two ideas are borrowed from it: reading the board by line weight rather
+      than × marks, and claiming that two squares sit on the same or opposite
+      sides of the loop without saying which is which.
+    </p>
+    <p class="done__body">
+      Everything else — the shared sheets, the branches, the generator and its
+      solver — was built for this.
+    </p>
+    <div class="done__acts">
+      <button class="btn btn--solid" id="creditsClose">Back to the sheet</button>
+    </div>
   </div>
 </div>
 
@@ -1933,6 +1968,11 @@ function showDone(fromBranch){
 }
 
 document.getElementById("doneStay").onclick=()=>{document.getElementById("done").hidden=true;};
+document.getElementById("creditsBtn").onclick=()=>{document.getElementById("credits").hidden=false;};
+document.getElementById("creditsClose").onclick=()=>{document.getElementById("credits").hidden=true;};
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape")document.getElementById("credits").hidden=true;
+});
 document.getElementById("doneNew").onclick=()=>{
   document.getElementById("done").hidden=true;
   if(!isOwner()){
@@ -2407,7 +2447,8 @@ function newBranchId(){
 }
 function treeRec(node){
   return {id:node.id,parent:node.parent,premise:node.premise,
-          marks:node.marks,by:node.by,byId:node.byId,at:node.at,dead:!!node.dead};
+          marks:node.marks,by:node.by,byId:node.byId,at:node.at,
+          ord:node.ord,dead:!!node.dead};
 }
 function pushTree(node){
   if(!room)return;
@@ -2432,14 +2473,18 @@ function syncTreeFromRoom(){
     if(r.dead)continue;
     branches.set(id,{id,parent:r.parent,children:[],premise:r.premise,
                      marks:r.marks||{e:{},k:{},d:{}},by:r.by,byId:r.byId,at:r.at,
-                     undo:[],redo:[],doneShown:false});
+                     ord:r.ord,undo:[],redo:[],doneShown:false});
   }
   for(const n of branches.values()){
     const par=n.parent?branches.get(n.parent):null;
     if(n.parent&&!par){ branches.delete(n.id); continue; }   // orphan
     (par?par.children:trunk.children).push(n.id);
   }
-  const sortAt=ids=>ids.sort((a,b)=>(branches.get(a).at||0)-(branches.get(b).at||0));
+  const key=id=>{
+    const n=branches.get(id);
+    return n.ord!==undefined&&n.ord!==null?n.ord:(n.at||0);
+  };
+  const sortAt=ids=>ids.sort((a,b)=>key(a)-key(b));
   sortAt(trunk.children);
   for(const n of branches.values())sortAt(n.children);
   if(keepId){
@@ -2776,6 +2821,28 @@ function paintPremises(){
 }
 
 /* ---- the branch tree in the panel ---- */
+/* Branches can be dragged into whatever order makes sense to you, within the
+   one parent. Moving between parents would change what a branch means, since
+   its marks are stored relative to the branch above, so it is not allowed. */
+function reorderBranch(dragId,dropId,after){
+  const a=branches.get(dragId), b=branches.get(dropId);
+  if(!a||!b||a.id===b.id)return false;
+  if((a.parent||null)!==(b.parent||null))return false;
+  const holder=(a.parent?branches.get(a.parent):trunk).children;
+  const from=holder.indexOf(dragId);
+  if(from<0)return false;
+  holder.splice(from,1);
+  let to=holder.indexOf(dropId);
+  if(to<0)return false;
+  holder.splice(after?to+1:to,0,dragId);
+  holder.forEach((id,i)=>{
+    const n=branches.get(id);
+    if(n&&n.ord!==i){ n.ord=i; pushTree(n); }
+  });
+  render();
+  return true;
+}
+
 function renderTree(){
   const box=trialEls.tree;
   box.innerHTML="";
@@ -2793,6 +2860,39 @@ function renderTree(){
     if(flag&&flag.kind==="clash")b.classList.add("tw--clash");
     b.onclick=()=>switchBranch(id);
     b.dataset.branch=(id==null?"":id);
+    if(id!=null){
+      b.draggable=true;
+      b.ondragstart=ev=>{
+        ev.dataTransfer.effectAllowed="move";
+        ev.dataTransfer.setData("text/plain",id);
+        b.classList.add("tw--dragging");
+      };
+      b.ondragend=()=>{
+        b.classList.remove("tw--dragging");
+        box.querySelectorAll(".tw").forEach(r=>r.classList.remove("tw--over","tw--under"));
+      };
+      b.ondragover=ev=>{
+        const from=box.querySelector(".tw--dragging");
+        if(!from||from===b)return;
+        const same=(branches.get(from.dataset.branch)||{}).parent
+                  ===(branches.get(id)||{}).parent;
+        if(!same)return;                 // only within the same parent
+        ev.preventDefault();
+        const r=b.getBoundingClientRect();
+        const after=(ev.clientY-r.top)>r.height/2;
+        b.classList.toggle("tw--under",after);
+        b.classList.toggle("tw--over",!after);
+      };
+      b.ondragleave=()=>b.classList.remove("tw--over","tw--under");
+      b.ondrop=ev=>{
+        ev.preventDefault();
+        const dragId=ev.dataTransfer.getData("text/plain");
+        const r=b.getBoundingClientRect();
+        const after=(ev.clientY-r.top)>r.height/2;
+        b.classList.remove("tw--over","tw--under");
+        reorderBranch(dragId,id,after);
+      };
+    }
     /* Up and down step through the list. The board also uses the arrow keys
        to scroll, so this only applies while a row has focus. */
     b.onkeydown=e=>{
