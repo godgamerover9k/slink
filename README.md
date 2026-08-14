@@ -1,53 +1,82 @@
-# Putting the room server on Render
+# Slitherlink Plot Room
 
-Free, reachable from anywhere, and nothing to leave running at home.
+One puzzle, one sheet, everybody's pens at once. This repository holds both
+halves: the page people play on, and the small server that lets them share a
+sheet.
 
-## What you need
+    index.html        the whole app — one file, no build step
+    slink-server.js   serves that page and keeps the rooms
+    render.yaml       tells Render how to run it
+    package.json      npm start
+    vercel.json       only matters if you also host the page on Vercel
 
-This folder, in a Git repository you can push to GitHub:
+## Putting it online (Render, free)
 
-    slink-server.js              the server
-    slitherlink-plotroom.html    the page it serves
-    package.json                 tells Render how to start it
-    render.yaml                  the deploy description
-
-## Steps
-
-1. Push this folder to a GitHub repository.
-2. On Render, choose **New → Blueprint** and select the repository. It reads
+1. Push this repository to GitHub.
+2. On Render choose **New → Blueprint** and pick the repository. It reads
    `render.yaml` and creates a free web service.
-3. Open the service's **Environment** tab and set **SLINK_KEY** to any phrase
-   you like, say `purple-otter-42`. This is what stops strangers reading and
-   overwriting your rooms.
-4. Wait for the deploy, then open the address Render gives you, with the key
-   on the end:
+3. Open the address it gives you, for example
+   `https://slitherlink-plot-room.onrender.com/`.
 
-       https://your-service.onrender.com/?k=purple-otter-42
+That address is the whole thing. Anyone you send it to can start a sheet or
+join one: whoever starts reads out the four-letter code from the top right,
+and the others put it into **Join a sheet**.
 
-   Anyone you send that link to can join. One of you starts a sheet, reads out
-   the four-letter code, and the others use **Join a sheet**.
+### Two things to expect
 
-## Things worth knowing
+**The first visit after a quiet spell is slow.** Render's free plan stops the
+service when nobody is using it, so the first person waits up to a minute
+while it wakes. After that it stays awake while anyone is playing.
 
-**It sleeps.** On the free plan the service stops when nobody has used it for
-a while. The first person to open the link after that waits up to a minute for
-it to wake. Once awake it stays awake while anyone is playing, because the page
-polls every few seconds.
+**The server forgets rooms when it restarts**, which it does on every deploy
+and after idling. That is fine for what it is — a meeting point. Your own
+progress is kept in your browser and comes back when you reopen the page, and
+**Export puzzle + progress** writes a sheet and all of its branches to a file
+you keep.
 
-**Its disk is wiped** on every restart and every deploy, so rooms on the server
-are temporary. That is fine for what this is for: the server is a meeting
-point. Each player's own progress lives in their browser and comes back when
-they reopen the page. Use **Export puzzle + progress** for anything you want
-to keep for certain — it saves the sheet and every branch to a file.
+### Making it private
 
-**Set SLINK_KEY.** Skip it and the server invents a new key each time it
-restarts, which quietly breaks the link you gave people.
+Rooms are open to anyone with the address. To lock it down, delete
+`SLINK_OPEN` from `render.yaml` (or the Render dashboard) and set `SLINK_KEY`
+to a phrase of your own. The address then only works with the key on the end:
 
-## Not using Render?
+    https://your-service.onrender.com/?k=your-phrase
 
-Anything that runs Node 18+ works — Koyeb, Northflank, a VPS. The server reads
-`PORT` from the environment, so most hosts need no configuration beyond
-`SLINK_KEY`. And if you would rather not deploy at all, run it at home and
-tunnel it:
+## Running it at home instead
+
+Anything with Node 18 or newer:
+
+    npm start
+
+It prints an address for this computer and one for each network interface.
+Other people on your network can use the second kind. To reach it from further
+away without deploying anything, tunnel it:
 
     cloudflared tunnel --url http://localhost:8080
+
+## Options
+
+`slink-server.js` reads `PORT`, `SLINK_KEY`, `SLINK_OPEN`, `SLINK_PAGE`,
+`SLINK_DATA`, `SLINK_HOST`, `SLINK_MAX_ROOMS` and `SLINK_MAX_VALUE` from the
+environment, and takes `--port`, `--key`, `--open`, `--page`, `--data`,
+`--host` and `--noopen` on the command line. `node slink-server.js --help`
+explains each.
+
+## Making puzzles faster
+
+The page can build its own puzzles, but it is single-threaded and a large
+sheet takes a while. **slink-gen** does the same job across every core, and
+the page has a download button for it. Its binaries are around 55MB, which is
+too big to keep in a Git repository comfortably — if you want the download
+button to appear, drop `slink-gen-win-x64.exe` (or the mac/linux build) beside
+`index.html` in the deployed site.
+
+## If you also host the page on Vercel
+
+`vercel.json` is here for that case: the same repository can serve the page
+from Vercel while the rooms live on Render. Open the Vercel page once with the
+room server on the end,
+
+    https://your-site.vercel.app/?server=https://your-service.onrender.com
+
+and it remembers. You do not need this if you are only using Render.

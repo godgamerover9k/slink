@@ -46,7 +46,9 @@ OPTIONS
       --data FILE   where rooms are kept         (default ${DEFAULTS.data})
       --key TEXT    require this key to read or write rooms
                     (one is generated for you; --key "" turns it off)
-      --open        no key at all — only sane on a private network
+      --open        no key: anyone who has the address can make and join
+                    rooms. Right for a shared server you want open to all;
+                    wrong for anything you would mind strangers writing to.
       --host ADDR   address to bind              (default ${DEFAULTS.host})
       --noopen      don't open a browser
   -h, --help
@@ -155,7 +157,18 @@ function makeServer(opt) {
     return null;
   };
 
+  const MAX_ROOMS = Number(ENV.SLINK_MAX_ROOMS) || 300;
+  const MAX_VALUE = Number(ENV.SLINK_MAX_VALUE) || 2e6;
   const store = new Map();
+  const touched = new Map();              // key -> last write, for eviction
+  const evict = () => {
+    while (store.size > MAX_ROOMS) {
+      let oldest = null, when = Infinity;
+      for (const [k, t] of touched) if (t < when) { when = t; oldest = k; }
+      if (oldest === null) break;
+      store.delete(oldest); touched.delete(oldest);
+    }
+  };
   const file = path.resolve(opt.data);
   try {
     if (fs.existsSync(file))
@@ -209,10 +222,22 @@ function makeServer(opt) {
         return res.end(store.get(key));
       }
       if (req.method === "PUT" || req.method === "POST") {
-        let raw = "";
-        req.on("data", d => { raw += d; if (raw.length > 8e6) req.destroy(); });
+        let raw = "", size = 0, tooBig = false;
+        req.on("data", d => {
+          size += d.length;
+          if (size > MAX_VALUE) {
+            // Stop keeping it, but let the request finish so the sender gets a
+            // real 413 rather than a broken socket. Only a wildly oversized
+            // body gets hung up on.
+            tooBig = true; raw = "";
+            if (size > MAX_VALUE * 50) req.destroy();
+          } else raw += d;
+        });
         req.on("end", () => {
+          if (tooBig) { res.writeHead(413, cors); return res.end("too big"); }
           store.set(key, raw);
+          touched.set(key, Date.now());
+          evict();
           saveSoon();
           res.writeHead(200, { ...cors, "Content-Type": "text/plain" });
           res.end("ok");
