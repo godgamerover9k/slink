@@ -1,0 +1,24 @@
+# Deploy the room server to Render.
+#
+#   1. Put this folder in a Git repository and push it to GitHub.
+#   2. On Render: New -> Blueprint, point it at the repository.
+#   3. Set SLINK_KEY in the service's Environment to any phrase you like.
+#      Without it a new key is generated on every restart, and the link you
+#      handed out stops working.
+#
+# The free plan sleeps when idle: the first visitor after a nap waits up to a
+# minute, then it stays awake while anyone is playing. Its disk is wiped on
+# every restart, so rooms are a meeting point, not long-term storage — each
+# player's own progress is kept in their browser.
+services:
+  - type: web
+    name: slink-server
+    runtime: node
+    plan: free
+    buildCommand: ""
+    startCommand: node slink-server.js
+    envVars:
+      - key: SLINK_KEY
+        sync: false          # set this yourself in the dashboard
+      - key: NODE_VERSION
+        value: "22"
