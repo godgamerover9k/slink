@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Plot Room — multiplayer Slitherlink</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="shell">
+  <header class="masthead">
+    <div class="wordmark">Plot Room <span>/ slitherlink</span></div>
+    <div class="masthead__spacer"></div>
+    <button class="linkbtn" id="creditsBtn" title="Credits, and how this was made">Credits · AI-made</button>
+    <div class="roomchip" id="roomchip" hidden>
+      <span class="tag">Puzzle</span><a id="roomcode" class="roomlink" href="#">····</a>
+      <button class="linkbtn" id="copycode" title="Copy a link that opens this puzzle">Copy link</button>
+      <button class="linkbtn" id="leaveroom">Leave</button>
+    </div>
+  </header>
+
+  <div class="stage">
+    <main>
+      <div class="strip strip--over">
+        <span id="sizeline"></span>
+        <span id="statline"></span>
+      </div>
+      <div class="sheet">
+        <svg id="board" role="img" aria-label="Slitherlink board"></svg>
+      </div>
+    </main>
+
+    <aside class="panel">
+      <section class="block">
+        <h3 class="block__title">Players <span id="onlinecount"></span></h3>
+        <div class="rack" id="rack"></div>
+      </section>
+
+      <section class="block">
+        <h3 class="block__title">Progress</h3>
+        <div class="readout" id="readout"></div>
+        <div class="bar"><i id="progbar"></i></div>
+      </section>
+
+      <section class="block" id="trialBlock">
+        <h3 class="block__title">Branches <span id="trialTag"></span></h3>
+        <div class="tree" id="trialTree"></div>
+        <p class="trial__copy" id="trialCopy">Branch off to test a guess.</p>
+        <div class="controls">
+          <button class="btn btn--wide" id="trialStart">Start a branch</button>
+          <button class="btn btn--wide btn--solid" id="trialReject" hidden>Contradiction — rule it out</button>
+          <button class="btn btn--wide" id="trialAccept" hidden>Accept this branch</button>
+          <button class="btn" id="trialRename" hidden>Rename</button>
+          <button class="btn" id="trialDrop" hidden>Discard</button>
+          <button class="btn" id="trialTest">Test</button>
+        </div>
+      </section>
+
+      <section class="block">
+        <h3 class="block__title">Tools</h3>
+        <div class="controls">
+          <button class="btn" id="undo">Undo</button>
+          <button class="btn" id="redo">Redo</button>
+          <button class="btn" id="clearlines">Clear lines</button>
+          <button class="btn" id="clearx">Clear X marks</button>
+          <button class="btn" id="clearfill">Clear colors</button>
+          <button class="btn btn--wide" id="check">Check puzzle</button>
+          <button class="btn" id="zoomIn">Zoom in</button>
+          <button class="btn" id="zoomOut">Zoom out</button>
+          <button class="btn btn--wide" id="zoomReset" hidden>Fit the puzzle</button>
+          <p class="panhint">Wheel scrolls · shift+wheel sideways · ctrl+wheel zooms · space-drag or middle-drag moves the board · arrow keys nudge</p>
+          <button class="btn btn--wide" id="exportBtn">Export puzzle + progress</button>
+          <button class="btn btn--wide btn--solid" id="newsheet">Load a new puzzle</button>
+        </div>
+        <div class="toggles" style="margin-top:13px">
+          <label class="tgl"><input type="checkbox" id="optDim" checked><span class="tgl__box"></span>Fade satisfied clues</label>
+          <label class="tgl"><input type="checkbox" id="optPremise" checked><span class="tgl__box"></span>Circle branch premises</label>
+          <label class="tgl"><input type="checkbox" id="optWeight"><span class="tgl__box"></span>Show ×s as absent lines</label>
+        </div>
+      </section>
+
+      <section class="block">
+        <h3 class="block__title">Controls
+          <button class="linkbtn block__toggle" id="ctrlToggle" aria-expanded="true">hide</button>
+        </h3>
+        <div class="legend">
+          <p><b>Click</b> a segment between two dots to draw a line.</p>
+          <p><b>Shift-click</b> (or right-click) marks it <b>×</b>.</p>
+          <p><b>Ctrl-click</b> a square to fill it <span class="swatch swatch--blue"></span>, <b>Alt-click</b> to fill it <span class="swatch swatch--yellow"></span>.</p>
+          <p>Repeating the same click removes the mark. <b>Drag</b> to repeat it across the puzzle.</p>
+          <p>Draw one closed loop. Each number says how many of its four sides the loop uses.</p>
+          <p>Stuck? <b>Branch</b> off and guess. Your first mark is the branch's premise, circled on the board.</p>
+          <p>Branch again inside a branch to go deeper, or from the puzzle for a rival guess.</p>
+          <p>Hit a contradiction and <b>rule it out</b>: the branch goes, and the opposite of its premise is written one level up.</p>
+        </div>
+      </section>
+    </aside>
+
+    <aside class="branchcol" id="branchcol"></aside>
+  </div>
+</div>
+
+<div class="done" id="credits" hidden>
+  <div class="done__card">
+    <p class="done__eyebrow">CREDITS</p>
+    <h2 class="done__title">Standing on other people's work</h2>
+    <p class="done__body">
+      Slitherlink was devised by <b>Nikoli</b>, the Japanese puzzle publisher
+      that also gave the world Sudoku.
+    </p>
+    <p class="done__body">
+      <b><a href="https://krazydad.com/" target="_blank" rel="noopener noreferrer">Krazydad</a></b>
+      — Jim Bumgardner's puzzle collection. The drawing scheme here follows his:
+      click a segment for a line, click again to take it away, drag to keep
+      going.
+    </p>
+    <p class="done__body">
+      <b><a href="https://jonathanolson.net/slitherlink/play" target="_blank" rel="noopener noreferrer">Jonathan Olson's Slitherlink</a></b>
+      — two ideas are borrowed from it: reading the board by line weight rather
+      than × marks, and claiming that two squares sit on the same or opposite
+      sides of the loop without saying which is which.
+    </p>
+    <p class="done__body">
+      Everything else — the shared puzzles, the branches, the generator and its
+      solver — was built for this.
+    </p>
+    <div class="done__acts">
+      <p class="done__body" style="border-top:1px solid var(--rule);padding-top:14px">
+        <b>Made with an AI.</b> This program — the page, the shared puzzles, the
+        branches, the generator and its solver — was written by Claude, an AI
+        assistant, working from a person's instructions. Expect the odd rough
+        edge, and check anything that matters.
+      </p>
+      <button class="btn btn--solid" id="creditsClose">Back to the puzzle</button>
+    </div>
+  </div>
+</div>
+
+<div class="done" id="done" hidden>
+  <div class="done__card">
+    <p class="done__eyebrow" id="doneWhere">SHEET COMPLETE</p>
+    <h2 class="done__title">The loop is closed.</h2>
+    <p class="done__body" id="doneBody"></p>
+    <div class="done__stats" id="doneStats"></div>
+    <div class="done__acts">
+      <button class="btn" id="doneStay">Look at it</button>
+      <button class="btn" id="donePromote" hidden>Put it on the puzzle</button>
+      <button class="btn btn--solid" id="doneNew">New puzzle</button>
+    </div>
+  </div>
+</div>
+<div class="veil" id="veil">
+  <div class="card">
+    <h2 id="cardTitle">Start plotting</h2>
+    <p class="sub" id="cardSub">One puzzle, one board, everybody's pens at once. Open a puzzle and share the code, or join one that's already running.</p>
+
+    <div class="field">
+      <label for="nameIn">Your name on the rack</label>
+      <input class="input" id="nameIn" maxlength="14" placeholder="e.g. mara" autocomplete="off">
+    </div>
+
+    <div class="tabs" role="tablist">
+      <button class="tab" id="tabNew" role="tab" aria-selected="true">New puzzle</button>
+      <button class="tab" id="tabJoin" role="tab" aria-selected="false">Join a puzzle</button>
+    </div>
+
+    <p class="note solonote" id="soloNote" hidden>Working on your own. Sharing needs somewhere both people can reach: run <b>slink-server</b> on one computer, keep this page in the same folder, and open the address it prints. Everything else works here, and your progress is kept while the tab is open.</p>
+
+    <div id="paneNew">
+      <div class="field">
+        <label for="rowsIn">Grid</label>
+        <div class="chips" id="sizeChips"></div>
+        <div class="dims">
+          <input class="input input--num" id="rowsIn" type="number" min="2" max="100" step="1" value="10" aria-label="Rows">
+          <span class="dims__x">×</span>
+          <input class="input input--num" id="colsIn" type="number" min="2" max="100" step="1" value="10" aria-label="Columns">
+          <span class="dims__hint" id="sizeHint"></span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Difficulty</label>
+        <div class="chips" id="diffChips"></div>
+        <p class="dims__hint" id="diffHint"></p>
+      </div>
+      <button class="btn btn--solid btn--wide" id="createBtn" style="width:100%">Generate the puzzle</button>
+      <div class="imp">
+        <input type="file" id="packIn" accept=".json,application/json" hidden>
+        <button class="btn btn--wide" id="importBtn" style="width:100%">Import a pack…</button>
+        <p class="imp__hint">Built offline with slink-gen: it uses every core, and big puzzles are far quicker there than in a tab.</p>
+        <div class="controls" style="margin-top:6px">
+          <a class="btn btn--wide" id="getExe" style="width:100%;text-align:center;text-decoration:none" hidden></a>
+          <button class="btn btn--wide" id="getGen" style="width:100%">Download slink-gen (needs Node)</button>
+        </div>
+        <div class="packlist" id="packList" hidden></div>
+      </div>
+      <div class="gen" id="gen" hidden>
+        <div class="gen__bar"><div class="gen__fill" id="genFill"></div></div>
+        <div class="gen__row"><span id="genStage">Working</span><span id="genPct"></span></div>
+        <p class="gen__note" id="genNote"></p>
+      </div>
+    </div>
+
+    <div id="paneJoin" hidden>
+      <div class="field">
+        <label for="codeIn">Puzzle code</label>
+        <input class="input" id="codeIn" maxlength="4" placeholder="4 letters" autocomplete="off"
+               style="text-transform:uppercase;letter-spacing:.3em">
+      </div>
+      <button class="btn btn--solid btn--wide" id="joinBtn" style="width:100%">Join</button>
+      <p class="joinnote" id="joinNote"></p>
+      <div class="field" style="margin-bottom:0">
+        <label for="serverIn">Room server</label>
+        <input class="input" id="serverIn" placeholder="same site as this page" autocomplete="off">
+        <p class="joinnote" id="serverNote"></p>
+      </div>
+    </div>
+
+    <p class="err" id="err"></p>
+    <p class="note">Anything drawn on a puzzle is visible to everyone who has its code, including your name in the player list.</p>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+
+  <script src="js/01-engine.js"></script>
+  <script src="js/02-solver.js"></script>
+  <script src="js/03-sat.js"></script>
+  <script src="js/04-generator.js"></script>
+  <script src="js/05-room-state.js"></script>
+  <script src="js/06-board.js"></script>
+  <script src="js/07-input.js"></script>
+  <script src="js/08-branches.js"></script>
+  <script src="js/09-tools.js"></script>
+  <script src="js/10-setup.js"></script>
+  <script src="js/11-boot.js"></script>
+
+</body>
+</html>

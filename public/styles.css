@@ -1,0 +1,271 @@
+:root{
+  --paper:#E4E6DC;
+  --sheet:#F3F4EC;
+  --sheet-shade:#DDDFD2;
+  --rule:#C6C9B9;
+  --ghost:#AFB2A3;
+  --graphite:#20232A;
+  --muted:#71756A;
+  --x-mark:#A3A79A;
+  --pen-1:#1D4E9C;
+  --pen-2:#C0272D;
+  --pen-3:#0F7A5A;
+  --pen-4:#6D3FA6;
+  --pen-5:#B8720A;
+  --pen-6:#A81B72;
+  --mark-blue:#82FAFE;
+  --mark-yellow:#FEFE3F;
+  --display:"Space Grotesk",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --shadow:0 1px 0 rgba(32,35,42,.06), 0 12px 28px -18px rgba(32,35,42,.5);
+}
+*{box-sizing:border-box}
+[hidden]{display:none !important}
+html,body{height:100%}
+body{
+  margin:0;background:var(--paper);color:var(--graphite);
+  font-family:var(--display);
+  -webkit-font-smoothing:antialiased;
+  overscroll-behavior:none;
+}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--graphite);outline-offset:2px}
+
+/* ---------- chrome ---------- */
+.shell{max-width:min(1720px,100%);margin:0 auto;padding:18px 24px 40px;display:flex;flex-direction:column;min-height:100%}
+.masthead{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;
+  border-bottom:1px solid var(--rule);padding-bottom:10px;margin-bottom:18px}
+.wordmark{font-weight:700;font-size:22px;letter-spacing:-.02em;line-height:1}
+.wordmark span{color:var(--muted);font-weight:400}
+.masthead__spacer{flex:1}
+.tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+
+.roomchip{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px}
+.roomchip .roomlink{font-size:16px;letter-spacing:.22em;font-weight:600;
+  color:var(--graphite);text-decoration:none;border-bottom:1px dotted var(--muted)}
+.roomchip .roomlink:hover{border-bottom-style:solid}
+.linkbtn{background:none;border:none;padding:2px 4px;cursor:pointer;font-family:var(--mono);
+  font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--rule)}
+.linkbtn:hover{color:var(--graphite);border-color:var(--graphite)}
+
+/* ---------- layout ---------- */
+.stage{display:grid;grid-template-columns:minmax(0,1fr) 268px 250px;gap:22px;align-items:start;flex:1}
+/* Below this the branch column folds back in with the rest of the panel. */
+@media (max-width:1320px){.stage{grid-template-columns:minmax(0,1fr) 268px}}
+@media (max-width:860px){.stage{grid-template-columns:minmax(0,1fr);gap:16px}}
+.branchcol{display:flex;flex-direction:column;gap:18px;position:sticky;top:18px}
+@media (max-width:1320px){.branchcol{position:static}}
+/* room for it now that it has a column to itself */
+@media (min-width:1321px){.tree{max-height:min(58vh,520px)}}
+
+.sheet{
+  max-width:min(100%,88vh);margin-inline:auto;
+  background:var(--sheet);border:1px solid var(--rule);border-radius:3px;
+  box-shadow:var(--shadow);padding:10px;position:relative;
+}
+#board{display:block;width:100%;height:auto;border-radius:2px;touch-action:none;-webkit-user-select:none;user-select:none;cursor:crosshair}
+
+.strip--over{margin-top:0;margin-bottom:8px}
+.strip{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;
+  font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.06em}
+.strip b{color:var(--graphite);font-weight:600}
+
+/* ---------- side panel ---------- */
+.panel{display:flex;flex-direction:column;gap:18px}
+.block{border:1px solid var(--rule);border-radius:3px;background:var(--sheet);padding:12px 12px 14px}
+.block__title{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--muted);margin:0 0 10px;display:flex;justify-content:space-between;align-items:center}
+
+/* signature: the pen rack */
+.rack{display:flex;flex-direction:column;gap:7px}
+.pen{display:flex;align-items:center;gap:9px;transform:translateX(0);transition:transform .18s ease}
+.pen--you{transform:translateX(10px)}
+.pen__barrel{
+  width:46px;height:13px;flex:none;position:relative;border-radius:1px 5px 5px 1px;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--pen) 78%,#fff) 0 38%,var(--pen) 38% 74%,color-mix(in srgb,var(--pen) 72%,#000) 74% 100%);
+  clip-path:polygon(0 50%,9px 0,100% 0,100% 100%,9px 100%);
+}
+/* Away, not gone: the pen keeps its colour so it still matches their lines
+   on the board. Only the name dims. */
+.pen__meta{min-width:0;display:flex;align-items:baseline;gap:6px;flex:1}
+.pen__name{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pen--idle .pen__name{color:var(--muted)}
+.pen__count{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-left:auto;flex:none}
+
+.readout{font-family:var(--mono);font-size:11.5px;line-height:1.75;color:var(--muted)}
+.readout b{color:var(--graphite);font-weight:600}
+.bar{height:3px;background:var(--sheet-shade);border-radius:2px;overflow:hidden;margin-top:8px}
+.bar i{display:block;height:100%;background:var(--graphite);width:0;transition:width .3s ease}
+
+.controls{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.btn{
+  appearance:none;border:1px solid var(--rule);background:var(--sheet);border-radius:2px;
+  padding:8px 6px;cursor:pointer;font-family:var(--mono);font-size:10.5px;letter-spacing:.11em;
+  text-transform:uppercase;transition:background .12s,border-color .12s,color .12s
+}
+.btn:hover:not(:disabled){background:var(--sheet-shade);border-color:var(--muted)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn--wide{grid-column:1/-1}
+.btn--solid{background:var(--graphite);color:var(--sheet);border-color:var(--graphite)}
+.btn--solid:hover:not(:disabled){background:#000;border-color:#000}
+
+.toggles{display:flex;flex-direction:column;gap:8px;font-size:12.5px}
+.tgl{display:flex;align-items:center;gap:9px;cursor:pointer}
+.tgl input{position:absolute;opacity:0;width:0;height:0}
+.tgl__box{width:15px;height:15px;flex:none;border:1px solid var(--muted);border-radius:2px;
+  display:grid;place-items:center;background:var(--sheet)}
+.tgl input:checked + .tgl__box{background:var(--graphite);border-color:var(--graphite)}
+.tgl__box::after{content:"";width:7px;height:4px;border-left:1.6px solid var(--sheet);border-bottom:1.6px solid var(--sheet);
+  transform:rotate(-45deg) translateY(-1px);opacity:0}
+.tgl input:checked + .tgl__box::after{opacity:1}
+.tgl input:focus-visible + .tgl__box{outline:2px solid var(--graphite);outline-offset:2px}
+
+/* trial: a fork of the sheet, drawn in pencil until it's kept */
+.trial__copy{font-size:12px;line-height:1.55;color:var(--muted);margin:0 0 10px}
+#trialBlock.on{border-style:dashed;border-color:var(--graphite);background:var(--sheet-shade)}
+#trialTag{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em}
+#trialTag.bad{color:var(--pen-2)}
+#trialTag.good{color:var(--pen-3)}
+body.trialing .sheet{border-style:dashed;border-color:var(--graphite)}
+body.trialing #board{cursor:cell}
+.prem{fill:none;stroke:var(--graphite);stroke-width:1.7;opacity:.9}
+.prem--anc{stroke:var(--muted);stroke-width:1.2;stroke-dasharray:3 2.5;opacity:.55}
+.tree{display:flex;flex-direction:column;gap:1px;margin-bottom:10px;max-height:172px;overflow:auto}
+.tw{display:flex;align-items:center;gap:6px;padding:4px 6px;width:100%;cursor:pointer;
+  border:1px solid transparent;border-radius:2px;background:none;text-align:left;
+  font-family:var(--mono);font-size:11px;color:var(--muted)}
+.tw:hover{background:var(--sheet-shade)}
+.tw[aria-current="true"]{border-color:var(--graphite);background:var(--sheet-shade);color:var(--graphite)}
+.tw__rail{flex:none;color:var(--rule)}
+.tw__label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tw__flag{margin-left:auto;flex:none;font-size:8.5px;letter-spacing:.1em}
+.tw__flag.bad{color:var(--pen-2)}
+.tw__flag.clash{color:var(--pen-2)}
+.tw--clash .tw__label{color:var(--pen-2)}
+.tw--dragging{opacity:.4}
+.tw--over{box-shadow:inset 0 2px 0 var(--graphite)}
+.tw--under{box-shadow:inset 0 -2px 0 var(--graphite)}
+.tw__flag.good{color:var(--pen-3)}
+/* Marks made on a branch look exactly like any other mark. Which branch a
+   mark belongs to is answered by moving through the branch list, so drawing
+   it into the mark itself only adds noise. */
+/* on a branch, marks carried down from above step back so the branch's own
+   work reads first */
+
+.imp{margin-top:10px}
+.imp__hint{font-family:var(--mono);font-size:9.5px;color:var(--muted);margin:6px 0 0;line-height:1.5}
+.packlist{margin-top:10px;display:flex;flex-direction:column;gap:2px;max-height:168px;overflow:auto}
+.pk{display:flex;align-items:baseline;gap:8px;width:100%;padding:6px 8px;cursor:pointer;
+  border:1px solid var(--rule);border-radius:2px;background:var(--sheet);text-align:left;
+  font-family:var(--mono);font-size:11px;color:var(--graphite)}
+.pk:hover{background:var(--sheet-shade)}
+.pk__meta{margin-left:auto;color:var(--muted);font-size:9.5px;letter-spacing:.06em}
+.gen{margin-top:12px}
+.gen__bar{height:4px;background:var(--rule);border-radius:2px;overflow:hidden}
+.gen__fill{height:100%;width:0;background:var(--graphite);transition:width .16s linear}
+.gen--wait .gen__fill{width:38%;animation:sweep 1.15s ease-in-out infinite}
+@keyframes sweep{0%{transform:translateX(-110%)}100%{transform:translateX(300%)}}
+.gen__row{display:flex;justify-content:space-between;gap:10px;margin-top:7px;
+  font-family:var(--mono);font-size:10px;letter-spacing:.09em;color:var(--graphite)}
+.gen__note{font-family:var(--mono);font-size:9.5px;line-height:1.5;color:var(--muted);margin:3px 0 0}
+.dims{display:flex;align-items:center;gap:8px;margin-top:8px}
+.input--num{width:74px;text-align:center;padding:8px 6px}
+.dims__x{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.dims__hint{font-family:var(--mono);font-size:10px;color:var(--muted);line-height:1.4;flex:1}
+.dims__hint.warn{color:var(--pen-5)}
+
+.block__toggle{float:right;font-size:9.5px}
+.block--shut .legend{display:none}
+.legend{font-size:12px;line-height:1.6;color:var(--muted);margin:0}
+.legend b{color:var(--graphite);font-weight:500}
+.legend p{margin:0 0 7px}
+
+/* ---------- setup screen ---------- */
+.veil{position:fixed;inset:0;background:color-mix(in srgb,var(--paper) 88%,transparent);
+  backdrop-filter:blur(2px);display:grid;place-items:center;padding:20px;z-index:20;overflow:auto}
+.card{width:min(460px,100%);background:var(--sheet);border:1px solid var(--rule);border-radius:3px;
+  box-shadow:var(--shadow);padding:24px}
+.card h2{font-size:20px;margin:0 0 4px;letter-spacing:-.01em}
+.card .sub{font-size:13px;color:var(--muted);margin:0 0 20px;line-height:1.5}
+.field{margin-bottom:16px}
+.field > label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:7px}
+.input{width:100%;padding:9px 11px;border:1px solid var(--rule);border-radius:2px;background:var(--paper);
+  font-family:var(--mono);font-size:14px;color:var(--graphite)}
+.input::placeholder{color:var(--x-mark)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--rule);background:var(--paper);border-radius:2px;padding:7px 11px;cursor:pointer;
+  font-family:var(--mono);font-size:11px;letter-spacing:.06em}
+.chip[aria-pressed="true"]{background:var(--graphite);color:var(--sheet);border-color:var(--graphite)}
+.tabs{display:flex;gap:18px;border-bottom:1px solid var(--rule);margin-bottom:20px}
+.tab{background:none;border:none;padding:0 0 9px;cursor:pointer;font-family:var(--mono);font-size:11px;
+  letter-spacing:.13em;text-transform:uppercase;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab[aria-selected="true"]{color:var(--graphite);border-bottom-color:var(--graphite)}
+.roomrow{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--rule);
+  border-radius:2px;background:var(--paper);cursor:pointer;text-align:left;width:100%}
+.roomrow:hover{border-color:var(--graphite)}
+.roomrow b{font-family:var(--mono);font-size:14px;letter-spacing:.2em;font-weight:600}
+.roomrow span{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-left:auto}
+.note{font-size:11.5px;color:var(--muted);line-height:1.55;margin:14px 0 0}
+.err{font-family:var(--mono);font-size:11px;color:var(--pen-2);margin-top:10px;min-height:14px}
+
+.toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,14px);opacity:0;pointer-events:none;
+  background:var(--graphite);color:var(--sheet);padding:9px 15px;border-radius:2px;
+  font-family:var(--mono);font-size:11px;letter-spacing:.08em;transition:opacity .2s,transform .2s;z-index:40}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* board ink */
+.dot{fill:var(--graphite)}
+.clue{font-family:var(--display);font-weight:500;text-anchor:middle;fill:var(--graphite)}
+.clue.done{fill:var(--x-mark)}
+.clue.over{fill:var(--pen-2)}
+.seg{stroke-linecap:round;stroke-width:5;opacity:0;transition:opacity .09s}
+.seg.on{opacity:1}
+/* An alternative reading of the same board: a drawn line is bold, an
+   undecided one is a thin ghost, and a ruled-out one simply is not there.
+   Nothing about the controls changes — only what you see. */
+body.weighted .xm{display:none}
+body.weighted .seg{opacity:1;stroke-width:1.8}
+body.weighted .seg:not(.on){stroke:var(--ghost)!important}
+body.weighted .seg.on{stroke-width:6}
+body.weighted .seg.off{opacity:0}
+.xm{stroke:var(--x-mark);stroke-width:2;stroke-linecap:round;opacity:0;transition:opacity .09s}
+.xm.on{opacity:1}
+#board:focus-visible{outline:2px solid var(--graphite);outline-offset:3px}
+.cursor.on{opacity:.85}
+.badv{fill:var(--pen-2);opacity:.18}
+.done{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;
+  background:color-mix(in srgb,var(--sheet) 82%,transparent);backdrop-filter:blur(3px);padding:22px}
+.done[hidden]{display:none}
+.done__card{background:var(--sheet);border:1px solid var(--graphite);border-radius:3px;
+  padding:26px 26px 20px;max-width:400px;width:100%;box-shadow:0 18px 50px rgba(32,35,42,.18)}
+.done__eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.18em;color:var(--muted);margin:0 0 10px}
+.done__title{font-size:24px;line-height:1.15;margin:0 0 10px;letter-spacing:-.01em}
+.done__body{font-size:13px;line-height:1.6;color:var(--muted);margin:0 0 16px}
+.done__body a{color:var(--graphite);text-underline-offset:2px}
+.done__stats{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:20px;
+  font-family:var(--mono);font-size:10px;letter-spacing:.09em;color:var(--graphite)}
+.done__stats b{display:block;font-size:17px;letter-spacing:0;margin-top:3px}
+.done__acts{display:flex;gap:8px;flex-wrap:wrap}
+.done__acts .btn{flex:1;min-width:110px}
+.joinnote{margin:10px 0 16px;font-size:11.5px;line-height:1.55;color:var(--muted)}
+.panhint{grid-column:1/-1;margin:2px 0 0;font-family:var(--mono);font-size:9px;
+  line-height:1.6;color:var(--muted);letter-spacing:.03em}
+.solonote{margin:0 0 14px;padding:9px 11px;border:1px solid var(--rule);border-radius:2px;
+  background:var(--sheet-shade);font-size:11.5px;line-height:1.55}
+.outside{fill:var(--mark-blue)}
+.inside{fill:var(--sheet)}
+.rel{stroke:var(--graphite);stroke-width:1.6;opacity:.75;stroke-linecap:round}
+.rel--s{stroke-dasharray:none}
+.rel--d{stroke-dasharray:5 3}
+.rel--tick{stroke-width:2.2;opacity:.9;stroke-dasharray:none}
+.dg{stroke:var(--graphite);stroke-width:2;stroke-linecap:round;opacity:.55}
+.fillsq{opacity:0;transition:opacity .1s}
+.fillsq.on{opacity:1}
+.swatch{width:11px;height:11px;flex:none;border:1px solid var(--graphite);border-radius:2px;display:inline-block;vertical-align:-1px}
+.swatch--blue{background:var(--mark-blue)}
+.swatch--yellow{background:var(--mark-yellow)}
+.trace{fill:none;stroke:var(--graphite);stroke-width:7;stroke-linecap:round;stroke-linejoin:round;opacity:.28}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms !important;transition-duration:.001ms !important}
+}

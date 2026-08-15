@@ -1,17 +1,8 @@
 /* Two independent pages sharing one storage backend, as two players would. */
 const fs = require('fs');
-const path=require('path');
-/* the page is index.html in the repository, and slitherlink-plotroom.html when
-   working on it loose; accept either */
-function pagePath(){
-  for(const p of ['index.html','slitherlink-plotroom.html',
-                  path.join(__dirname,'..','index.html')])
-    if(require('fs').existsSync(p))return p;
-  throw new Error('cannot find the page next to these tests');
-}
-
 const { JSDOM } = require('jsdom');
-const html = fs.readFileSync(pagePath(), 'utf8');
+const { loadPage } = require('./pageload.js');
+const html = loadPage(__dirname);
 
 const shared = new Map();               // the shared backend
 function makePlayer(name) {

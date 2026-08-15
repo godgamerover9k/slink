@@ -1,15 +1,6 @@
 const fs=require('fs');const {JSDOM}=require('jsdom');
-const path=require('path');
-/* the page is index.html in the repository, and slitherlink-plotroom.html when
-   working on it loose; accept either */
-function pagePath(){
-  for(const p of ['index.html','slitherlink-plotroom.html',
-                  path.join(__dirname,'..','index.html')])
-    if(require('fs').existsSync(p))return p;
-  throw new Error('cannot find the page next to these tests');
-}
-
-const html=fs.readFileSync(pagePath(),'utf8');
+const { loadPage } = require('./pageload.js');
+const html = loadPage(__dirname);
 const shared=new Map();
 function mk(store){const priv=new Map();
  const dom=new JSDOM(html,{runScripts:'dangerously',pretendToBeVisual:true,beforeParse(w){
@@ -81,9 +72,9 @@ const ck=(n,a,b)=>{const ok=JSON.stringify(a)===JSON.stringify(b);ok?pass++:fail
  ck("bob's line keeps his", wB, plainB);
  ck('the two are told apart', wA!==wB, true);
  ck('neither is the flat grey', wA!=='var(--rule)'&&wB!=='var(--rule)', true);
- const css=fs.readFileSync(pagePath(),'utf8');
+ const css=require('fs').readFileSync(require('path').join(__dirname,'..','public','styles.css'),'utf8');
  ck('the grey rule only targets undecided segments',
-    /body\.weighted \.seg:not\(\.on\)\{stroke:var\(--rule\)/.test(css), true);
+    /body\.weighted \.seg:not\(\.on\)\{stroke:var\(--ghost\)/.test(css), true);
  ck('and no rule paints every segment', /body\.weighted \.seg\{[^}]*stroke:/.test(css), false);
  ck('a ruled-out one is invisible', C.ev(`getComputedStyle(segEls[${xd}]).opacity`), '0');
  console.log(`\n${pass} passed, ${fail} failed`);

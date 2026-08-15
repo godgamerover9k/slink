@@ -1,21 +1,11 @@
 /* A link should open straight into the puzzle, carrying the server and key
    with it, so one link is all a friend needs. */
 const {spawn}=require('child_process');
-const path=require('path');
-/* the page is index.html in the repository, and slitherlink-plotroom.html when
-   working on it loose; accept either */
-function pagePath(){
-  for(const p of ['index.html','slitherlink-plotroom.html',
-                  path.join(__dirname,'..','index.html')])
-    if(require('fs').existsSync(p))return p;
-  throw new Error('cannot find the page next to these tests');
-}
-
 const {JSDOM}=require('jsdom');
 const PORT=8341, KEY='linkkey';
 const base=`http://127.0.0.1:${PORT}/`;
 const srv=spawn('node',['slink-server.js','--port',String(PORT),'--key',KEY,
-  '--page',pagePath(),'--data','/tmp/link.json','--noopen']);
+  '--page','slitherlink-plotroom.html','--data','/tmp/link.json','--noopen']);
 let out='';srv.stdout.on('data',d=>out+=d);srv.stderr.on('data',d=>out+=d);
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 let pass=0,fail=0;

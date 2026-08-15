@@ -1,15 +1,6 @@
 const fs=require('fs');const {JSDOM}=require('jsdom');
-const path=require('path');
-/* the page is index.html in the repository, and slitherlink-plotroom.html when
-   working on it loose; accept either */
-function pagePath(){
-  for(const p of ['index.html','slitherlink-plotroom.html',
-                  path.join(__dirname,'..','index.html')])
-    if(require('fs').existsSync(p))return p;
-  throw new Error('cannot find the page next to these tests');
-}
-
-const html=fs.readFileSync(pagePath(),'utf8');
+const { loadPage } = require('./pageload.js');
+const html = loadPage(__dirname);
 const mem=new Map();
 const dom=new JSDOM(html,{runScripts:'dangerously',pretendToBeVisual:true,beforeParse(w){
  w.storage={async get(k){return mem.has(k)?{key:k,value:mem.get(k)}:null},async set(k,v){mem.set(k,v);return{key:k,value:v}},async list(){return{keys:[]}},async delete(){return{}}};
@@ -48,7 +39,14 @@ const css=(sel,prop)=>ev(`getComputedStyle(document.querySelector('${sel}')).${p
  ck('a ruled-out edge draws nothing', ev(`getComputedStyle(segEls[${xd}]).opacity`), '0');
  ck('a drawn line is bold', parseFloat(ev(`getComputedStyle(segEls[${line}]).strokeWidth`)), 6);
  ck('an undecided edge is a thin ghost',
-    parseFloat(ev(`getComputedStyle(segEls[${ev('engine.H(3,3)')}]).strokeWidth`)), 1);
+    parseFloat(ev(`getComputedStyle(segEls[${ev('engine.H(3,3)')}]).strokeWidth`)), 1.8);
+ // and it must sit behind the drawn ones, not over them
+ ck('undecided lines are in the lower layer',
+    ev(`segEls[${ev('engine.H(3,3)')}].parentNode === gSegGhost`), true);
+ ck('drawn lines are in the upper layer',
+    ev(`segEls[${line}].parentNode === gSegDrawn`), true);
+ ck('the two layers are ordered ghost-then-drawn',
+    ev(`[...gSegGhost.parentNode.children].indexOf(gSegGhost) < [...gSegDrawn.parentNode.children].indexOf(gSegDrawn)`), true);
  ck('the marks themselves are unchanged', ev(`room.edges[${xd}]`), '2');
  ck('and colours still work the same way', ev('room.cells[0]')+ev('room.cells[1]'), '12');
 

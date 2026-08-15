@@ -1,17 +1,8 @@
 const fs = require('fs');
-const path=require('path');
-/* the page is index.html in the repository, and slitherlink-plotroom.html when
-   working on it loose; accept either */
-function pagePath(){
-  for(const p of ['index.html','slitherlink-plotroom.html',
-                  path.join(__dirname,'..','index.html')])
-    if(require('fs').existsSync(p))return p;
-  throw new Error('cannot find the page next to these tests');
-}
-
 const { JSDOM } = require('jsdom');
 
-const html = fs.readFileSync(pagePath(), 'utf8');
+const { loadPage } = require('./pageload.js');
+const html = loadPage(__dirname);
 const mem = new Map();
 let downloaded = null;
 const dom = new JSDOM(html, {
@@ -192,14 +183,18 @@ const key = (t, k, code) => window.dispatchEvent(new window.KeyboardEvent(t, { k
   await wait(600);
   ck('board came back mid-solve', ev('room.edges'), solvedEdges);
 
-  console.log('\n--- slink-gen download ---');
-  downloaded = null;
-  $('getGen').click();
+  console.log('\n--- the generator is offered as a download ---');
+  // it is served as a file now, rather than carried inside the page
+  // the anchor is clicked and discarded, so catch it on the way past
+  ev("window.__grabbed=null;" +
+     "HTMLAnchorElement.prototype.click=function(){window.__grabbed=" +
+     "{href:this.getAttribute('href'),name:this.getAttribute('download')};};");
+  ev("document.getElementById('getGen').onclick()");
   await wait(80);
-  ck('generator offered', !!downloaded, true);
-  const gen = await downloaded.text();
-  ck('is the real script', gen.startsWith('#!/usr/bin/env node'), true);
-  ck('carries the solver fix', gen.includes('function rec(cy0)'), true);
+  ck('a download is triggered', ev('!!window.__grabbed'), true);
+  ck('pointing at the served file', ev('window.__grabbed && window.__grabbed.href'),
+     'download/slink-gen.js');
+  ck('named for what it is', ev('window.__grabbed && window.__grabbed.name'), 'slink-gen.js');
 
   console.log('\n' + '='.repeat(50));
   console.log(`${pass} passed, ${fail} failed`);

@@ -12,7 +12,7 @@ services:
     runtime: node
     plan: free
     buildCommand: ""
-    startCommand: node slink-server.js
+    startCommand: node server/slink-server.js --page public/index.html
     envVars:
       - key: SLINK_OPEN
         value: "1"           # anyone may make and join rooms

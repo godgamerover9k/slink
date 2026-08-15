@@ -1,17 +1,13 @@
 {
   "name": "slitherlink-plot-room",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "Slitherlink plot room — the page and the room server that shares it",
-  "main": "slink-server.js",
+  "main": "server/slink-server.js",
   "scripts": {
-    "start": "node slink-server.js",
+    "start": "node server/slink-server.js --page public/index.html",
     "test": "node tests/run-all.js"
   },
-  "engines": {
-    "node": ">=18"
-  },
-  "devDependencies": {
-    "jsdom": "^26.0.0"
-  }
+  "engines": { "node": ">=18" },
+  "devDependencies": { "jsdom": "^26.0.0" }
 }
