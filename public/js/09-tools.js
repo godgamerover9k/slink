@@ -270,7 +270,13 @@ document.getElementById("newsheet").onclick = () => {
     toast("Only " + ownerLabel() + " can change this puzzle");
     return;
   }
-  if (!confirm("Load a new puzzle for everyone in this room? The current one is cleared."))
+  /* Only worth asking when the answer matters to somebody else. Alone in a
+     puzzle, the confirmation is a question with one sensible answer. */
+  const others = (room.players || []).filter(p => p.id !== me.id && now() - p.seen < IDLE_MS);
+  if (
+    others.length &&
+    !confirm("Load a new puzzle for everyone in this room? The current one is cleared.")
+  )
     return;
   clearBranches();
   openSetup(true);
@@ -311,3 +317,43 @@ function toast(msg) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove("on"), 2600);
 }
+
+/* Changing your name or colour, from the player list. Both take effect
+   everywhere as soon as the next sync goes out. */
+(function wireIdentity() {
+  const btn = document.getElementById("meEdit");
+  if (!btn) return;
+
+  const open = () => {
+    if (!room) return;
+    const asked = prompt("Your name in this puzzle", me.name || "");
+    if (asked !== null && asked.trim()) setMyName(asked);
+    pickPen();
+  };
+
+  function pickPen() {
+    const box = document.getElementById("penPick");
+    if (box) {
+      box.remove();
+      return;
+    }
+    const wrap = document.createElement("div");
+    wrap.id = "penPick";
+    wrap.className = "penpick";
+    PENS.forEach((_, i) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "penpick__dot";
+      b.style.background = `var(${PENS[i]})`;
+      b.title = "use this colour";
+      b.onclick = () => {
+        setMyPen(i);
+        wrap.remove();
+      };
+      wrap.appendChild(b);
+    });
+    btn.after(wrap);
+  }
+
+  btn.onclick = open;
+})();

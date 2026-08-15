@@ -56,7 +56,13 @@ button{font:inherit;color:inherit}
 .branchcol{display:flex;flex-direction:column;gap:18px;position:sticky;top:18px}
 @media (max-width:1320px){.branchcol{position:static}}
 /* room for it now that it has a column to itself */
-@media (min-width:1321px){.tree{max-height:min(58vh,520px)}}
+/* In its own column the list should use the height that is there, rather than
+   scrolling inside a short box with empty space underneath. */
+@media (min-width:1321px){
+  .branchcol{max-height:calc(100vh - 36px)}
+  .branchcol .block{display:flex;flex-direction:column;min-height:0}
+  .tree{max-height:none;flex:1 1 auto;min-height:0;overflow:auto}
+}
 
 .sheet{
   max-width:min(100%,88vh);margin-inline:auto;
@@ -142,6 +148,10 @@ body.trialing #board{cursor:cell}
 .tw__flag.bad{color:var(--pen-2)}
 .tw__flag.clash{color:var(--pen-2)}
 .tw--clash .tw__label{color:var(--pen-2)}
+.tw__flag.good{color:var(--ok,#2E7D32)}
+.tw__twist{margin-left:6px;font-size:10px;color:var(--muted);cursor:pointer;
+  padding:1px 4px;border-radius:3px}
+.tw__twist:hover{background:var(--rule)}
 .tw--dragging{opacity:.4}
 .tw--over{box-shadow:inset 0 2px 0 var(--graphite)}
 .tw--under{box-shadow:inset 0 -2px 0 var(--graphite)}
@@ -269,3 +279,14 @@ body.weighted .seg.off{opacity:0}
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.001ms !important;transition-duration:.001ms !important}
 }
+
+/* Section labels inside the tools panel, so a long list reads as a few short
+   ones rather than a wall of buttons. */
+.toolgroup{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--muted);margin:14px 0 6px}
+.toolgroup:first-of-type{margin-top:4px}
+
+.penpick{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.penpick__dot{width:20px;height:20px;border-radius:50%;border:1px solid var(--rule);
+  cursor:pointer;padding:0}
+.penpick__dot:hover{outline:2px solid var(--graphite);outline-offset:1px}

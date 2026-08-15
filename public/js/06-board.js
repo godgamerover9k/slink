@@ -62,13 +62,20 @@ function penSlot(id) {
 let penMap = null;
 function buildPenMap() {
   penMap = new Map();
-  const ids = [...((room && room.players) || [])]
-    .map(p => p.id)
-    .filter(Boolean)
-    .sort();
+  const players = [...((room && room.players) || [])].filter(p => p && p.id);
+  players.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const used = new Set();
-  for (const id of ids) {
-    const h = penSlot(id);
+  // anyone who picked a colour keeps it; the rest are placed around them
+  for (const p of players) {
+    if (p.pen === undefined || p.pen === null) continue;
+    const s = ((p.pen % PENS.length) + PENS.length) % PENS.length;
+    if (used.has(s)) continue;
+    used.add(s);
+    penMap.set(penSlot(p.id), s);
+  }
+  for (const p of players) {
+    const h = penSlot(p.id);
+    if (penMap.has(h)) continue;
     let s = h % PENS.length;
     for (let i = 0; i < PENS.length && used.has(s); i++) s = (s + 1) % PENS.length;
     used.add(s);
@@ -226,6 +233,43 @@ function cellSatisfied(k) {
   return on > want ? 2 : on === want ? 1 : 0;
 }
 
+/* A puzzle can be finished by colouring rather than drawing: if every square
+   has a side, the border between the colours is a loop, and that loop meets
+   the clues, the puzzle is solved with no line drawn.
+
+   Which colour means "inside" is the player's choice, so both readings are
+   built and whichever one is a solution wins. */
+function edgesFromColours(cells, blueInside) {
+  cells = cells || room.cells;
+  if (!cells) return null;
+  const { R, C, E: EDGE_COUNT, NC: CELL_COUNT } = engine;
+  for (let k = 0; k < CELL_COUNT; k++) if (cells[k] === "0") return null;
+
+  // inside(k) is true for squares the loop encloses; off the board is outside
+  const inside = k => (k < 0 ? false : (cells[k] === "1") === !!blueInside);
+  const out = new Array(EDGE_COUNT).fill("2");
+  for (let r = 0; r <= R; r++)
+    for (let c = 0; c < C; c++)
+      out[engine.H(r, c)] =
+        inside(r > 0 ? (r - 1) * C + c : -1) !== inside(r < R ? r * C + c : -1) ? "1" : "2";
+  for (let r = 0; r < R; r++)
+    for (let c = 0; c <= C; c++)
+      out[engine.V(r, c)] =
+        inside(c > 0 ? r * C + c - 1 : -1) !== inside(c < C ? r * C + c : -1) ? "1" : "2";
+  return out.join("");
+}
+
+/* The colouring read as a finished puzzle, or null if it is not one. */
+function solvedByColour(cells) {
+  for (const blueInside of [true, false]) {
+    const edges = edgesFromColours(cells, blueInside);
+    if (!edges) return null;
+    const st = loopStatus(edges);
+    if (st.solved) return { edges, info: st };
+  }
+  return null;
+}
+
 function loopStatus(edges) {
   edges = edges || room.edges;
   const { E: EDGE_COUNT, VC: DOT_COUNT, NC: CELL_COUNT } = engine,
@@ -277,11 +321,17 @@ let dimClues = true,
   weighted = false;
 
 function render() {
+  keepMasterFresh();   // branches derive from the master; keep it current
   if (!room || !engine) return;
   const { E: EDGE_COUNT, NC: CELL_COUNT } = engine;
   /* Pen colours exist to tell people apart. On your own there is nobody to
      tell apart, so the sheet reads better in plain graphite. */
-  const soloPen = (room.players || []).filter(p => now() - p.seen < IDLE_MS).length < 2;
+  /* On your own the sheet reads better in plain graphite — unless you have
+     actually chosen a colour, in which case ignoring it looks broken. */
+  const mine = (room.players || []).find(p => p.id === me.id);
+  const chosePen = !!(mine && mine.pen !== undefined && mine.pen !== null);
+  const soloPen =
+    !chosePen && (room.players || []).filter(p => now() - p.seen < IDLE_MS).length < 2;
   buildPenMap();
 
   for (let i = 0; i < EDGE_COUNT; i++) {
@@ -326,11 +376,19 @@ function render() {
     el.classList.toggle("done", dimClues && s === 1);
     el.classList.toggle("over", s === 2);
   }
-  const info = loopStatus();
+  /* Finishing by colour counts too: if every square is coloured and the border
+     between the colours is a loop that satisfies the clues, the puzzle is
+     solved whether or not the lines were drawn. */
+  let info = loopStatus();
+  if (!info.solved) {
+    const byColour = solvedByColour();
+    if (byColour) info = byColour.info;
+  }
   // only worth saying when it is worth saying; the counts live in Progress
-  document.getElementById("statline").textContent = room.solvedAt
-    ? "Loop closed — puzzle complete"
-    : "";
+  // info is fresh; room.solvedAt is only set further down, so reading that
+  // alone left the line blank on the very render that finished the puzzle
+  document.getElementById("statline").textContent =
+    room.solvedAt || info.solved ? "Loop closed — puzzle complete" : "";
   document.getElementById("sizeline").textContent =
     `${room.R}×${room.C} · ${(DIFFS[room.diff] || {}).label || room.diff}${room.minimal ? " · minimal" : ""}`;
 
@@ -432,6 +490,41 @@ function paintDiagonals() {
     l.setAttribute("class", "dg");
     gDiag.appendChild(l);
   }
+}
+
+/* Your name and colour are yours to change, at any point, without leaving the
+   puzzle. The colour is stored as a chosen pen slot; everyone else's is worked
+   out from their id, so choosing one only shifts somebody else if they had the
+   same one. */
+function setMyName(name) {
+  const clean = String(name || "").trim().slice(0, 24);
+  if (!clean || !room) return false;
+  me.name = clean;
+  try {
+    window.localStorage.setItem("sl:me", JSON.stringify(me));
+  } catch (e) {}
+  const p = room.players.find(q => q.id === me.id);
+  if (p) {
+    p.name = clean;
+    p.seen = now();
+  }
+  flushSoon();
+  render();
+  return true;
+}
+
+function setMyPen(slot) {
+  if (!room) return false;
+  const p = room.players.find(q => q.id === me.id);
+  if (!p) return false;
+  p.pen = slot;
+  p.seen = now();
+  try {
+    window.localStorage.setItem("sl:pen", String(slot));
+  } catch (e) {}
+  flushSoon();
+  render();
+  return true;
 }
 
 function renderRack() {

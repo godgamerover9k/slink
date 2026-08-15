@@ -67,6 +67,7 @@ function treeRec(node) {
     by: node.by,
     byId: node.byId,
     at: node.at,
+    made: node.made || node.at,
     ord: node.ord,
     name: node.name || "",
     dead: !!node.dead,
@@ -105,6 +106,7 @@ function syncTreeFromRoom() {
       byId: r.byId,
       at: r.at,
       ord: r.ord,
+      made: r.made || r.at,
       name: r.name || "",
       undo: [],
       redo: [],
@@ -121,7 +123,8 @@ function syncTreeFromRoom() {
   }
   const key = id => {
     const n = branches.get(id);
-    return n.ord !== undefined && n.ord !== null ? n.ord : n.at || 0;
+    if (n.ord !== undefined && n.ord !== null) return n.ord;
+    return n.made || n.at || 0;        // when it was made, not when last touched
   };
   const sortAt = ids => ids.sort((a, b) => key(a) - key(b));
   sortAt(trunk.children);
@@ -139,16 +142,30 @@ function chainOf(node) {
   for (let n = node; n; n = n.parent ? branches.get(n.parent) : null) chain.unshift(n);
   return chain;
 }
+/* The master board. It is kept up to date by render while no branch is open
+   (see keepMasterFresh), so this never has to guess from whatever the room
+   happens to be showing — which broke when a branch was mid-switch. */
+function sheetBoard() {
+  return trunk.saved || boardSnapshot();
+}
+
+/* Called from render. While no branch is open the room *is* the master, so
+   the snapshot branches derive from is refreshed here rather than only when
+   a branch is opened, which left it stale. */
+function keepMasterFresh() {
+  if (!trial && room) trunk.saved = boardSnapshot();
+}
+
 function baseBoardOf(node) {
   const par = node && node.parent ? branches.get(node.parent) : null;
-  return par ? deriveBoard(par) : trunk.saved || boardSnapshot();
+  return par ? deriveBoard(par) : sheetBoard();
 }
 function refreshBase() {
   if (trial) trial.baseBoard = baseBoardOf(trial);
 }
 
 function deriveBoard(node) {
-  const base = trunk.saved || boardSnapshot();
+  const base = sheetBoard();
   let edges = base.edges,
     cells = base.cells,
     diag = base.diag;
@@ -432,6 +449,7 @@ function createBranch() {
     by: me ? me.name : "?",
     byId: me ? me.id : null,
     at: now(),
+    made: now(),
     undo: [],
     redo: [],
   };
@@ -642,10 +660,22 @@ function reorderBranch(dragId, dropId, after) {
   return true;
 }
 
+/* Which branches are expanded. A view preference, so it stays on this screen
+   rather than being shared with everyone else. */
+const openBranches = new Set();
+
+/* The branch being worked on is always reachable, however its parents are set. */
+function onPathToTrial(id) {
+  if (!trial) return false;
+  for (let n = trial; n; n = n.parent ? branches.get(n.parent) : null)
+    if (n.parent === id) return true;
+  return false;
+}
+
 function renderTree() {
   const box = trialEls.tree;
   box.innerHTML = "";
-  const row = (label, depth, id, flag, premise) => {
+  const row = (label, depth, id, flag, premise, kids) => {
     const b = document.createElement("button");
     b.type = "button";
     b.className = "tw";
@@ -658,6 +688,21 @@ function renderTree() {
     if (flag) {
       f.textContent = flag.text;
       f.className = "tw__flag " + flag.kind;
+    }
+    /* Offshoots stay tucked away until you ask for them, with a count so you
+       can see there is something under there. */
+    if (kids) {
+      const t = document.createElement("span");
+      t.className = "tw__twist";
+      t.textContent = (kids.shut ? "▸ " : "▾ ") + kids.count;
+      t.title = kids.shut ? `show ${kids.count} inside` : "hide what is inside";
+      t.onclick = ev => {
+        ev.stopPropagation();
+        if (openBranches.has(id)) openBranches.delete(id);
+        else openBranches.add(id);
+        renderTrial();
+      };
+      b.appendChild(t);
     }
     b.title = premise || label;
     if (flag && flag.kind === "clash") b.classList.add("tw--clash");
@@ -732,6 +777,17 @@ function renderTree() {
     return count;
   };
 
+  /* If what this branch assumed has since been settled the same way further
+     up, it is no longer a guess and can be taken as read. */
+  const premiseSettled = n => {
+    const p = n.premise;
+    if (!p || p.to === "0") return false;
+    const base = baseBoardOf(n);
+    if (p.kind === "edge") return base.edges[p.idx] === p.to;
+    if (p.kind === "cell") return base.cells[p.idx] === p.to;
+    return false;
+  };
+
   const flagFor = n => {
     // a parked branch is judged from the board its marks derive to
     const st = trial && trial.id === n.id ? null : deriveBoard(n);
@@ -739,6 +795,7 @@ function renderTree() {
     if (t.msgs.length) return { text: "BROKEN", kind: "bad" };
     const c = clashes(n);
     if (c) return { text: "OVERWRITES " + c, kind: "clash" };
+    if (premiseSettled(n)) return { text: "ALREADY TRUE", kind: "good" };
     if (t.solved) return { text: "CLOSES", kind: "good" };
     return null;
   };
@@ -747,8 +804,11 @@ function renderTree() {
     ids.forEach(id => {
       const n = branches.get(id);
       if (!n) return;
-      row(branchLabel(n), depth, id, flagFor(n), premiseLabel(n.premise));
-      walk(n.children, depth + 1);
+      const kids = n.children.filter(k => branches.get(k));
+      const shut = kids.length && !openBranches.has(id) && !onPathToTrial(id);
+      row(branchLabel(n), depth, id, flagFor(n), premiseLabel(n.premise),
+          kids.length ? { count: kids.length, shut } : null);
+      if (!shut) walk(n.children, depth + 1);
     });
   walk(trunk.children, 1);
 }
@@ -793,8 +853,10 @@ function renderTrial() {
   } else {
     trialEls.tag.textContent = "NOTHING BROKEN YET";
     trialEls.tag.className = "good";
+    // the premise is already on the row above and circled on the board; saying
+    // it a third time only pushed the buttons down the panel
     trialEls.copy.textContent = trial.premise
-      ? "Assuming " + premiseLabel(trial.premise) + ". Follow it until something breaks."
+      ? ""
       : "Your first mark becomes this branch's premise.";
   }
 }

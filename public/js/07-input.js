@@ -29,20 +29,20 @@ let dragLast = null,
 let diagStart = null;
 
 /* hold D for diagonal scribbles */
-window.addEventListener("keydown", e => {
-  if (e.key === "r" || e.key === "R") relHeld = true;
+window.addEventListener("keydown", ev => {
+  if (ev.key === "r" || ev.key === "R") relHeld = true;
 });
-window.addEventListener("keyup", e => {
-  if (e.key === "r" || e.key === "R") relHeld = false;
+window.addEventListener("keyup", ev => {
+  if (ev.key === "r" || ev.key === "R") relHeld = false;
 });
 window.addEventListener("blur", () => {
   relHeld = false;
 });
-window.addEventListener("keydown", e => {
-  if (e.key === "d" || e.key === "D") diagHeld = true;
+window.addEventListener("keydown", ev => {
+  if (ev.key === "d" || ev.key === "D") diagHeld = true;
 });
-window.addEventListener("keyup", e => {
-  if (e.key === "d" || e.key === "D") diagHeld = false;
+window.addEventListener("keyup", ev => {
+  if (ev.key === "d" || ev.key === "D") diagHeld = false;
 });
 
 let view = { x: 0, y: 0, w: 0, h: 0 },
@@ -114,28 +114,28 @@ function setRelUser(key, val) {
   return true;
 }
 
-function setDiagUser(k, val, intoStroke) {
+function setDiagUser(cell, val, intoStroke) {
   ensureCells(room);
-  const before = room.diag[k];
+  const before = room.diag[cell];
   if (before === val) return false;
-  if (!queueDiag(k, val)) return false;
-  const step = { d: k, from: before, to: val };
+  if (!queueDiag(cell, val)) return false;
+  const step = { d: cell, from: before, to: val };
   if (intoStroke && stroke) stroke.push(step);
   else undoStack.push([step]);
-  propagateDown({ kind: "diag", idx: k, from: before, to: val });
+  propagateDown({ kind: "diag", idx: cell, from: before, to: val });
   render();
   return true;
 }
 
-function setCellUser(k, val, intoStroke) {
+function setCellUser(cell, val, intoStroke) {
   ensureCells(room);
-  const before = room.cells[k];
+  const before = room.cells[cell];
   if (before === val) return false;
-  if (!queueCell(k, val)) return false;
-  const step = { k, from: before, to: val };
+  if (!queueCell(cell, val)) return false;
+  const step = { k: cell, from: before, to: val };
   if (intoStroke && stroke) stroke.push(step);
   else undoStack.push([step]);
-  propagateDown({ kind: "cell", idx: k, from: before, to: val });
+  propagateDown({ kind: "cell", idx: cell, from: before, to: val });
   render();
   return true;
 }
@@ -164,35 +164,35 @@ function vertAt(x, y) {
   const r = Math.min(engine.R, Math.max(0, Math.round((y - PAD) / CELL)));
   return { r, c };
 }
-const edgeBetween = (a, b) => {
-  if (a.r === b.r && Math.abs(a.c - b.c) === 1) return engine.H(a.r, Math.min(a.c, b.c));
-  if (a.c === b.c && Math.abs(a.r - b.r) === 1) return engine.V(Math.min(a.r, b.r), a.c);
+const edgeBetween = (a, btn) => {
+  if (a.r === btn.r && Math.abs(a.c - btn.c) === 1) return engine.H(a.r, Math.min(a.c, btn.c));
+  if (a.c === btn.c && Math.abs(a.r - btn.r) === 1) return engine.V(Math.min(a.r, btn.r), a.c);
   return -1;
 };
 
 /* walk the straight run between two dots so a fast drag doesn't skip edges */
-function dragTo(v) {
-  if (v.r === dragVert.r && v.c === dragVert.c) return;
-  if (v.r !== dragVert.r && v.c !== dragVert.c) {
+function dragTo(dot) {
+  if (dot.r === dragVert.r && dot.c === dragVert.c) return;
+  if (dot.r !== dragVert.r && dot.c !== dragVert.c) {
     // a sloppy or curved sweep moves diagonally between samples. Walk the
     // longer leg first rather than dropping the stroke on the floor.
     const mid =
-      Math.abs(v.r - dragVert.r) >= Math.abs(v.c - dragVert.c)
-        ? { r: v.r, c: dragVert.c }
-        : { r: dragVert.r, c: v.c };
+      Math.abs(dot.r - dragVert.r) >= Math.abs(dot.c - dragVert.c)
+        ? { r: dot.r, c: dragVert.c }
+        : { r: dragVert.r, c: dot.c };
     dragTo(mid);
   }
-  const step = v.r === dragVert.r ? Math.sign(v.c - dragVert.c) : Math.sign(v.r - dragVert.r);
-  while (dragVert.r !== v.r || dragVert.c !== v.c) {
+  const step = dot.r === dragVert.r ? Math.sign(dot.c - dragVert.c) : Math.sign(dot.r - dragVert.r);
+  while (dragVert.r !== dot.r || dragVert.c !== dot.c) {
     const next =
-      v.r === dragVert.r
+      dot.r === dragVert.r
         ? { r: dragVert.r, c: dragVert.c + step }
         : { r: dragVert.r + step, c: dragVert.c };
-    const e = edgeBetween(dragVert, next);
-    if (e >= 0 && !dragSeen.has(e)) {
-      if (dragVal === null) dragVal = toggleTo(room.edges[e], dragWant);
-      dragSeen.add(e);
-      setEdgeUser(e, dragVal, true);
+    const ev = edgeBetween(dragVert, next);
+    if (ev >= 0 && !dragSeen.has(ev)) {
+      if (dragVal === null) dragVal = toggleTo(room.edges[ev], dragWant);
+      dragSeen.add(ev);
+      setEdgeUser(ev, dragVal, true);
     }
     dragVert = next;
   }
@@ -200,46 +200,46 @@ function dragTo(v) {
 
 /* ctrl/cmd paints blue, alt paints yellow — checked before the button,
    because ctrl+click reports as a right-click on macOS */
-function fillWanted(e) {
-  if (e.ctrlKey || e.metaKey) return BLUE;
-  if (e.altKey) return YELLOW;
+function fillWanted(ev) {
+  if (ev.ctrlKey || ev.metaKey) return BLUE;
+  if (ev.altKey) return YELLOW;
   return null;
 }
 
 /* ---- zoom and pan: needed once a sheet is bigger than the window ---- */
 let panning = null,
   spaceHeld = false;
-window.addEventListener("keydown", e => {
-  if (e.code === "Space" && !/input|textarea/i.test((e.target || {}).tagName || "")) {
+window.addEventListener("keydown", ev => {
+  if (ev.code === "Space" && !/input|textarea/i.test((ev.target || {}).tagName || "")) {
     spaceHeld = true;
   }
-  if (e.key === "0" && (e.ctrlKey || e.metaKey)) {
-    e.preventDefault();
+  if (ev.key === "0" && (ev.ctrlKey || ev.metaKey)) {
+    ev.preventDefault();
     resetView();
   }
 });
-window.addEventListener("keyup", e => {
-  if (e.code === "Space") spaceHeld = false;
+window.addEventListener("keyup", ev => {
+  if (ev.code === "Space") spaceHeld = false;
 });
 
 /* Wheel scrolls the sheet, which is what a wheel normally does. Zooming is
    ctrl/cmd + wheel, matching every map and drawing tool. */
 board.addEventListener(
   "wheel",
-  e => {
+  ev => {
     if (!room) return;
-    e.preventDefault();
-    if (e.ctrlKey || e.metaKey) {
-      const p = svgPoint(e);
-      zoomAt(p.x, p.y, e.deltaY < 0 ? 1.12 : 1 / 1.12);
+    ev.preventDefault();
+    if (ev.ctrlKey || ev.metaKey) {
+      const pt = svgPoint(ev);
+      zoomAt(pt.x, pt.y, ev.deltaY < 0 ? 1.12 : 1 / 1.12);
       return;
     }
     const step = view.w / viewFull.w;
-    if (e.shiftKey) {
-      view.x += e.deltaY * step;
+    if (ev.shiftKey) {
+      view.x += ev.deltaY * step;
     } else {
-      view.x += e.deltaX * step;
-      view.y += e.deltaY * step;
+      view.x += ev.deltaX * step;
+      view.y += ev.deltaY * step;
     }
     applyView();
   },
@@ -247,14 +247,14 @@ board.addEventListener(
 );
 
 /* arrow keys nudge the sheet when it is bigger than the window */
-window.addEventListener("keydown", e => {
+window.addEventListener("keydown", ev => {
   if (!room || !veil.hidden) return; // only while the setup card is closed
-  if (/input|textarea/i.test((e.target || {}).tagName || "")) return;
+  if (/input|textarea/i.test((ev.target || {}).tagName || "")) return;
   const NUDGE = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[
-    e.key
+    ev.key
   ];
   if (!NUDGE || view.w >= viewFull.w - 0.5) return;
-  e.preventDefault();
+  ev.preventDefault();
   view.x += NUDGE[0] * view.w * 0.15;
   view.y += NUDGE[1] * view.h * 0.15;
   applyView();
@@ -263,23 +263,23 @@ window.addEventListener("keydown", e => {
 /* middle button, or space held, drags the sheet around */
 board.addEventListener(
   "pointerdown",
-  e => {
+  ev => {
     if (!room) return;
-    if (e.button !== 1 && !spaceHeld) return;
-    e.preventDefault();
-    board.setPointerCapture(e.pointerId);
-    panning = { x: e.clientX, y: e.clientY };
+    if (ev.button !== 1 && !spaceHeld) return;
+    ev.preventDefault();
+    board.setPointerCapture(ev.pointerId);
+    panning = { x: ev.clientX, y: ev.clientY };
   },
   true,
 );
 board.addEventListener(
   "pointermove",
-  e => {
+  ev => {
     if (!panning) return;
     const r = board.getBoundingClientRect();
-    view.x -= ((e.clientX - panning.x) / r.width) * view.w;
-    view.y -= ((e.clientY - panning.y) / r.height) * view.h;
-    panning = { x: e.clientX, y: e.clientY };
+    view.x -= ((ev.clientX - panning.x) / r.width) * view.w;
+    view.y -= ((ev.clientY - panning.y) / r.height) * view.h;
+    panning = { x: ev.clientX, y: ev.clientY };
     applyView();
   },
   true,
@@ -290,21 +290,21 @@ const endPan = () => {
 board.addEventListener("pointerup", endPan, true);
 board.addEventListener("pointercancel", endPan, true);
 
-board.addEventListener("contextmenu", e => e.preventDefault());
-board.addEventListener("pointerdown", e => {
+board.addEventListener("contextmenu", ev => ev.preventDefault());
+board.addEventListener("pointerdown", ev => {
   if (!room || room.solvedAt) return;
-  if (panning || spaceHeld || e.button === 1) return;
-  const p = svgPoint(e);
+  if (panning || spaceHeld || ev.button === 1) return;
+  const pt = svgPoint(ev);
 
   if (relHeld) {
     // claim about two squares
-    const k = cellAt(p.x, p.y);
-    if (k < 0) return;
-    e.preventDefault();
-    board.setPointerCapture(e.pointerId);
-    relFrom = k;
+    const cell = cellAt(pt.x, pt.y);
+    if (cell < 0) return;
+    ev.preventDefault();
+    board.setPointerCapture(ev.pointerId);
+    relFrom = cell;
     dragMode = "rel";
-    relWantSame = e.shiftKey;
+    relWantSame = ev.shiftKey;
     return;
   }
 
@@ -312,56 +312,56 @@ board.addEventListener("pointerdown", e => {
     /* A diagonal is drawn corner to corner, not clicked: start near a dot and
        finish near the opposite one. The nearest dot is used, so it does not
        have to be hit exactly. */
-    e.preventDefault();
-    board.setPointerCapture(e.pointerId);
+    ev.preventDefault();
+    board.setPointerCapture(ev.pointerId);
     ensureCells(room);
     redoStack = [];
     stroke = [];
     dragSeen = new Set();
-    dragFrom = p;
-    dragLast = p;
-    diagStart = vertAt(p.x, p.y);
+    dragFrom = pt;
+    dragLast = pt;
+    diagStart = vertAt(pt.x, pt.y);
     dragMode = "diag";
     return;
   }
 
-  const paint = fillWanted(e);
+  const paint = fillWanted(ev);
 
   if (paint) {
     // colour a square
-    const k = cellAt(p.x, p.y);
-    if (k < 0) return;
-    e.preventDefault();
-    board.setPointerCapture(e.pointerId);
+    const cell = cellAt(pt.x, pt.y);
+    if (cell < 0) return;
+    ev.preventDefault();
+    board.setPointerCapture(ev.pointerId);
     ensureCells(room);
-    const val = toggleTo(room.cells[k], paint);
+    const val = toggleTo(room.cells[cell], paint);
     dragMode = "cell";
     dragVal = val;
-    dragSeen = new Set([k]);
+    dragSeen = new Set([cell]);
     stroke = [];
     redoStack = [];
-    dragLast = p;
-    setCellUser(k, val, true);
+    dragLast = pt;
+    setCellUser(cell, val, true);
     return;
   }
 
   // Pressing right on a dot is ambiguous — up to four edges are equally close,
   // and picking one at random is what left a stray stub across a sweep. Wait
   // for the drag to say which way it is going instead.
-  const v = vertAt(p.x, p.y);
-  const onDot = Math.hypot(p.x - (PAD + v.c * CELL), p.y - (PAD + v.r * CELL)) < CELL * 0.22;
-  const i = onDot ? -1 : edgeAt(p.x, p.y);
+  const dot = vertAt(pt.x, pt.y);
+  const onDot = Math.hypot(pt.x - (PAD + dot.c * CELL), pt.y - (PAD + dot.r * CELL)) < CELL * 0.22;
+  const i = onDot ? -1 : edgeAt(pt.x, pt.y);
   if (i < 0 && !onDot) return;
-  e.preventDefault();
-  board.setPointerCapture(e.pointerId);
-  dragWant = e.shiftKey || e.button === 2 ? XMARK : LINE;
+  ev.preventDefault();
+  board.setPointerCapture(ev.pointerId);
+  dragWant = ev.shiftKey || ev.button === 2 ? XMARK : LINE;
   dragMode = "edge";
   dragSeen = new Set();
-  dragVert = v;
+  dragVert = dot;
   stroke = [];
   dragVal = null;
   redoStack = [];
-  dragLast = p;
+  dragLast = pt;
   if (i >= 0) {
     dragVal = toggleTo(room.edges[i], dragWant);
     dragSeen.add(i);
@@ -382,38 +382,38 @@ function alongDrag(to, fn) {
   dragLast = to;
 }
 
-board.addEventListener("pointermove", e => {
+board.addEventListener("pointermove", ev => {
   if (panning) return;
   if (dragMode === null || !room) return;
-  const p = svgPoint(e);
+  const pt = svgPoint(ev);
 
   if (dragMode === "diag") {
-    dragLast = p;
+    dragLast = pt;
     return; // decided when the drag ends
   }
   if (dragMode === "cell") {
-    alongDrag(p, (x, y) => {
-      const k = cellAt(x, y);
-      if (k < 0 || dragSeen.has(k)) return;
-      dragSeen.add(k);
-      setCellUser(k, dragVal, true);
+    alongDrag(pt, (x, y) => {
+      const cell = cellAt(x, y);
+      if (cell < 0 || dragSeen.has(cell)) return;
+      dragSeen.add(cell);
+      setCellUser(cell, dragVal, true);
     });
     return;
   }
-  alongDrag(p, (x, y) => dragTo(vertAt(x, y)));
+  alongDrag(pt, (x, y) => dragTo(vertAt(x, y)));
 });
-const endDrag = e => {
+const endDrag = ev => {
   if (dragMode === "diag") {
-    const p = e && e.clientX !== undefined ? svgPoint(e) : dragLast;
-    const to = p ? vertAt(p.x, p.y) : null;
+    const pt = ev && ev.clientX !== undefined ? svgPoint(ev) : dragLast;
+    const to = pt ? vertAt(pt.x, pt.y) : null;
     const a = diagStart;
     if (a && to && Math.abs(to.r - a.r) === 1 && Math.abs(to.c - a.c) === 1) {
       // the square between the two corners, and which way the stroke leans
-      const k = Math.min(a.r, to.r) * engine.C + Math.min(a.c, to.c);
+      const cell = Math.min(a.r, to.r) * engine.C + Math.min(a.c, to.c);
       const slant = (to.r - a.r) * (to.c - a.c) > 0 ? "1" : "2";
-      if (k >= 0 && k < engine.NC) {
-        const cur = room.diag[k];
-        setDiagUser(k, cur === slant ? "0" : slant, false);
+      if (cell >= 0 && cell < engine.NC) {
+        const cur = room.diag[cell];
+        setDiagUser(cell, cur === slant ? "0" : slant, false);
       }
     } else if (a && to && a.r === to.r && a.c === to.c) {
       // a tap on a corner clears whichever square you are pointing into
@@ -428,8 +428,8 @@ const endDrag = e => {
     return;
   }
   if (dragMode === "rel") {
-    const p = e && e.clientX !== undefined ? svgPoint(e) : null;
-    const to = p ? cellAt(p.x, p.y) : -1;
+    const pt = ev && ev.clientX !== undefined ? svgPoint(ev) : null;
+    const to = pt ? cellAt(pt.x, pt.y) : -1;
     if (to >= 0 && to !== relFrom) {
       const key = relKey(relFrom, to);
       const want = relWantSame ? "s" : "d";
@@ -443,8 +443,8 @@ const endDrag = e => {
   }
   // a D-click that never moved still leaves a mark, slanting one way by default
   if (dragMode === "diag" && stroke && !stroke.length && dragFrom) {
-    const k = cellAt(dragFrom.x, dragFrom.y);
-    if (k >= 0) setDiagUser(k, "1", true);
+    const cell = cellAt(dragFrom.x, dragFrom.y);
+    if (cell >= 0) setDiagUser(cell, "1", true);
   }
   if (stroke && stroke.length) undoStack.push(stroke);
   dragVal = null;
@@ -460,14 +460,14 @@ board.addEventListener("pointerup", endDrag);
 board.addEventListener("pointercancel", endDrag);
 window.addEventListener("blur", endDrag);
 
-document.addEventListener("keydown", e => {
-  if (e.target.tagName === "INPUT") return;
-  const k = e.key.toLowerCase();
-  if ((e.metaKey || e.ctrlKey) && k === "z") {
-    e.preventDefault();
-    e.shiftKey ? doRedo() : doUndo();
-  } else if ((e.metaKey || e.ctrlKey) && k === "y") {
-    e.preventDefault();
+document.addEventListener("keydown", ev => {
+  if (ev.target.tagName === "INPUT") return;
+  const cell = ev.key.toLowerCase();
+  if ((ev.metaKey || ev.ctrlKey) && cell === "z") {
+    ev.preventDefault();
+    ev.shiftKey ? doRedo() : doUndo();
+  } else if ((ev.metaKey || ev.ctrlKey) && cell === "y") {
+    ev.preventDefault();
     doRedo();
   }
 });

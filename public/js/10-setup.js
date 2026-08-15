@@ -69,16 +69,16 @@ function refreshSize() {
     let d = "",
       dwarn = false;
     if (ok && pickDiff === "maximal" && n > 256) {
-      d = "a maximal sweep this big can run for minutes";
+      d = "at this size, Maximal can take several minutes to build";
       dwarn = true;
     } else if (ok && pickDiff === "maximal" && n > 144) {
-      d = "maximal sweeps take longer at this size";
+      d = "Maximal takes a while at this size";
     } else if (pickDiff === "maximal") {
-      d = "trims until no clue can be removed";
+      d = "as few clues as the puzzle can keep — hardest";
     } else if (pickDiff === "tough") {
-      d = "one removal pass over every clue";
+      d = "fewer clues, harder going";
     } else if (pickDiff === "gentle") {
-      d = "keeps most clues";
+      d = "plenty of clues to work from";
     }
     diffHint.textContent = d;
     diffHint.classList.toggle("warn", dwarn);
@@ -114,7 +114,7 @@ function genStart() {
   genEls.stage.textContent = "Laying out a loop";
   genEls.pct.textContent = "0s";
   genEls.fill.style.width = "";
-  genEls.note.textContent = "looking for a loop with exactly one solution";
+  genEls.note.textContent = "finding a puzzle with just one solution";
 }
 function genStop() {
   genEls.box.hidden = true;
@@ -145,7 +145,7 @@ function genUpdate(info) {
   bits.push(el);
   genEls.note.textContent =
     bits.join(" · ") +
-    (info.minimal && info.pass > 1 ? " · sweeping until nothing more can go" : "");
+    (info.minimal && info.pass > 1 ? " · taking out every clue it can" : "");
 }
 
 function buildChips() {
@@ -305,7 +305,7 @@ function readPack(text) {
   try {
     data = JSON.parse(text);
   } catch {
-    throw new Error("That file isn't valid JSON.");
+    throw new Error("That file isn't a puzzle file.");
   }
   if (data && data.format && data.format !== "slitherlink-pack")
     throw new Error(`That looks like a "${data.format}" file, not a Slitherlink pack.`);
@@ -496,7 +496,7 @@ async function joinRoom(codeRaw) {
   }
   if (!store.ok) {
     errEl.textContent =
-      "This page can't reach shared storage, so joining someone else's puzzle won't work here. Starting a new one still does.";
+      "This page has nowhere to keep a shared puzzle, so joining one won't work here. Starting your own still does.";
     return false;
   }
   await saveMe();
@@ -661,6 +661,8 @@ function enterRoom(code) {
   // invite anyone to, so showing one only misleads.
   const chip = document.getElementById("roomchip");
   if (chip) chip.hidden = !store.ok;
+  const edit = document.getElementById("meEdit");
+  if (edit) edit.hidden = false;      // your name and colour, once you are in
   // record the resume point straight away: on a 5s timer alone, closing the
   // tab quickly after joining lost it
   setTimeout(() => {

@@ -38,6 +38,7 @@
       <section class="block">
         <h3 class="block__title">Players <span id="onlinecount"></span></h3>
         <div class="rack" id="rack"></div>
+        <button class="linkbtn" id="meEdit" hidden>Change name or colour</button>
       </section>
 
       <section class="block">
@@ -62,20 +63,39 @@
 
       <section class="block">
         <h3 class="block__title">Tools</h3>
+
+        <p class="toolgroup">Undo</p>
         <div class="controls">
           <button class="btn" id="undo">Undo</button>
           <button class="btn" id="redo">Redo</button>
+        </div>
+
+        <p class="toolgroup">Erase</p>
+        <div class="controls">
           <button class="btn" id="clearlines">Clear lines</button>
           <button class="btn" id="clearx">Clear X marks</button>
-          <button class="btn" id="clearfill">Clear colors</button>
+          <button class="btn btn--wide" id="clearfill">Clear colors</button>
+        </div>
+
+        <p class="toolgroup">Check</p>
+        <div class="controls">
           <button class="btn btn--wide" id="check">Check puzzle</button>
+        </div>
+
+        <p class="toolgroup">View</p>
+        <div class="controls">
           <button class="btn" id="zoomIn">Zoom in</button>
           <button class="btn" id="zoomOut">Zoom out</button>
           <button class="btn btn--wide" id="zoomReset" hidden>Fit the puzzle</button>
           <p class="panhint">Wheel scrolls · shift+wheel sideways · ctrl+wheel zooms · space-drag or middle-drag moves the board · arrow keys nudge</p>
+        </div>
+
+        <p class="toolgroup">This puzzle</p>
+        <div class="controls">
           <button class="btn btn--wide" id="exportBtn">Export puzzle + progress</button>
           <button class="btn btn--wide btn--solid" id="newsheet">Load a new puzzle</button>
         </div>
+
         <div class="toggles" style="margin-top:13px">
           <label class="tgl"><input type="checkbox" id="optDim" checked><span class="tgl__box"></span>Fade satisfied clues</label>
           <label class="tgl"><input type="checkbox" id="optPremise" checked><span class="tgl__box"></span>Circle branch premises</label>
@@ -133,7 +153,7 @@
         <b>Made with an AI.</b> This program — the page, the shared puzzles, the
         branches, the generator and its solver — was written by Claude, an AI
         assistant, working from a person's instructions. Expect the odd rough
-        edge, and check anything that matters.
+        edge.
       </p>
       <button class="btn btn--solid" id="creditsClose">Back to the puzzle</button>
     </div>

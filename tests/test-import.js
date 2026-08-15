@@ -90,7 +90,7 @@ const rowsShown = () => [...doc.querySelectorAll('.pk')].map(b => b.children[0].
 
   console.log('\n--- malformed packs are refused, not opened ---');
   const bad = [
-    ['not json at all', 'nonsense{', /valid JSON/],
+    ['not json at all', 'nonsense{', /isn't a puzzle file/],
     ['wrong format tag', JSON.stringify({ format: 'sudoku-pack', puzzles: [] }), /not a Slitherlink pack/],
     ['no puzzles', JSON.stringify({ format: 'slitherlink-pack', puzzles: [] }), /no puzzles/],
     ['clue count mismatch', JSON.stringify({ puzzles: [{ R: 4, C: 4, clues: [1, 2, 3] }] }), /lists 3 clues/],

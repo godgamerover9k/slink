@@ -42,8 +42,17 @@ window.addEventListener("resize", placeBranchPanel);
   soloNotice();
   // a link to a puzzle wins over whatever you were last looking at
   if (linkRoom && store.ok) {
+    /* Following a link goes straight into the puzzle, so the one chance to say
+       who you are has gone by. Offer it, unless a name is already set. */
+    const named = !!(me && me.name && me.name !== "Anon");
     document.getElementById("codeIn").value = linkRoom;
-    if (await joinRoom(linkRoom)) return;
+    if (await joinRoom(linkRoom)) {
+      if (!named) {
+        const asked = prompt("You are in. What should the others call you?", me.name || "");
+        if (asked !== null && asked.trim()) setMyName(asked);
+      }
+      return;
+    }
     // it did not open. openSetup resets the tab and clears the message, so
     // put both back afterwards rather than before.
     const why = errEl.textContent;

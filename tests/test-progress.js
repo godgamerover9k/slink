@@ -1,17 +1,8 @@
 const fs = require('fs');
-const path=require('path');
-/* the page is index.html in the repository, and slitherlink-plotroom.html when
-   working on it loose; accept either */
-function pagePath(){
-  for(const p of ['index.html','slitherlink-plotroom.html',
-                  path.join(__dirname,'..','index.html')])
-    if(require('fs').existsSync(p))return p;
-  throw new Error('cannot find the page next to these tests');
-}
-
 const { JSDOM } = require('jsdom');
 
-const html = fs.readFileSync(pagePath(), 'utf8');
+const { loadPage } = require('./pageload.js');
+const html = loadPage(__dirname);
 const mem = new Map();
 const dom = new JSDOM(html, {
   runScripts: 'dangerously', pretendToBeVisual: true,
@@ -111,7 +102,7 @@ const ck = (n, a, b) => {
     passes.every(x => x === 'Trimming clues' || /^Trimming clues · pass \d+$/.test(x)), true);
 
   ck('hidden again when finished', $('gen').hidden, true);
-  ck('button restored', $('createBtn').textContent, 'Open the puzzle');
+  ck('button restored', $('createBtn').textContent, 'Generate the puzzle');
   ck('button usable again', $('createBtn').disabled, false);
   console.log(`  built ${ev('room.R')}x${ev('room.C')}, ${ev('room.given')} clues`);
 

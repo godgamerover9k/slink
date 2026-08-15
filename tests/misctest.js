@@ -46,7 +46,9 @@ const ck=(n,a,b)=>{const ok=JSON.stringify(a)===JSON.stringify(b);ok?pass++:fail
  $('creditsBtn').click();
  const txt=$('credits').textContent;
  ck('credits explain it was written by an AI', /written by Claude, an AI/.test(txt), true);
- ck('and says to check what matters', /check anything that matters/.test(txt), true);
+ ck('and warns it may be rough', /rough\s+edge/.test(txt), true);
+ // the disclaimer is for players; maintenance advice does not belong in it
+ ck('without telling players to go checking things', /check anything/.test(txt), false);
  console.log(`\n${pass} passed, ${fail} failed`);
  process.exit(fail?1:0);
 })();
