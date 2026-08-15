@@ -50,7 +50,9 @@ button{font:inherit;color:inherit}
 .tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
 
 .roomchip{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px}
-.roomchip b{font-size:16px;letter-spacing:.22em;font-weight:600}
+.roomchip .roomlink{font-size:16px;letter-spacing:.22em;font-weight:600;
+  color:var(--graphite);text-decoration:none;border-bottom:1px dotted var(--muted)}
+.roomchip .roomlink:hover{border-bottom-style:solid}
 .linkbtn{background:none;border:none;padding:2px 4px;cursor:pointer;font-family:var(--mono);
   font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--rule)}
 .linkbtn:hover{color:var(--graphite);border-color:var(--graphite)}
@@ -285,8 +287,8 @@ body.weighted .seg.off{opacity:0}
     <div class="masthead__spacer"></div>
     <button class="linkbtn" id="creditsBtn" title="Credits, and how this was made">Credits · AI-made</button>
     <div class="roomchip" id="roomchip" hidden>
-      <span class="tag">Puzzle</span><b id="roomcode">····</b>
-      <button class="linkbtn" id="copycode" title="Copy the code for someone else to join with">Copy</button>
+      <span class="tag">Puzzle</span><a id="roomcode" class="roomlink" href="#">····</a>
+      <button class="linkbtn" id="copycode" title="Copy a link that opens this puzzle">Copy link</button>
       <button class="linkbtn" id="leaveroom">Leave</button>
     </div>
   </header>
@@ -336,7 +338,7 @@ body.weighted .seg.off{opacity:0}
           <button class="btn" id="clearlines">Clear lines</button>
           <button class="btn" id="clearx">Clear X marks</button>
           <button class="btn" id="clearfill">Clear colors</button>
-          <button class="btn btn--wide" id="check">Check my lines</button>
+          <button class="btn btn--wide" id="check">Check puzzle</button>
           <button class="btn" id="zoomIn">Zoom in</button>
           <button class="btn" id="zoomOut">Zoom out</button>
           <button class="btn btn--wide" id="zoomReset" hidden>Fit the puzzle</button>
@@ -3282,9 +3284,14 @@ document.getElementById("exportBtn").onclick=async()=>{
 };
 
 document.getElementById("clearlines").onclick=()=>{
-  let n=0;
+  ensureCells(room);
+  let n=0,d=0;
   for(let i=0;i<g.E;i++) if(room.edges[i]==="1"){ queueOp(i,"0"); n++; }
-  render(); toast(n?"Lines cleared":"No lines to clear");
+  // diagonals are drawn lines too, so clearing lines takes them with it
+  for(let k=0;k<g.NC;k++) if(room.diag[k]!=="0"){ queueDiag(k,"0"); d++; }
+  render();
+  toast(n||d ? `Cleared ${n} line${n===1?"":"s"}`+(d?` and ${d} diagonal${d===1?"":"s"}`:"")
+             : "Nothing drawn to clear");
 };
 
 document.getElementById("clearx").onclick=()=>{
@@ -3316,11 +3323,22 @@ document.getElementById("newsheet").onclick=()=>{
   clearBranches();
   openSetup(true);
 };
+document.getElementById("roomcode").onclick=e=>{
+  e.preventDefault();
+  document.getElementById("copycode").click();
+};
+
 document.getElementById("copycode").onclick=async()=>{
-  try{ await navigator.clipboard.writeText(room.code); toast("Code "+room.code+" copied"); }
-  catch(e){ toast("Puzzle code: "+room.code); }
+  const link=roomLink(room.code);
+  try{ await navigator.clipboard.writeText(link); toast("Link copied — send it to whoever is joining"); }
+  catch(e){ toast(link); }
 };
 document.getElementById("leaveroom").onclick=()=>{
+  try{
+    const u=new URL(location.href);
+    u.searchParams.delete("room");
+    history.replaceState(null,"",u.toString());
+  }catch(e){}
   clearBranches();
   clearInterval(pollTimer); clearInterval(indexTimer);
   room=null;
@@ -3690,12 +3708,12 @@ document.getElementById("codeIn").addEventListener("keydown",e=>{if(e.key==="Ent
 async function joinRoom(codeRaw){
   const code=(codeRaw||"").trim().toUpperCase();
   errEl.textContent="";
-  if(code.length!==4){ errEl.textContent="Puzzle codes are 4 characters."; return; }
-  if(!store.ok){ errEl.textContent="This page can't reach shared storage, so joining someone else's puzzle won't work here. Starting a new one still does."; return; }
+  if(code.length!==4){ errEl.textContent="Puzzle codes are 4 characters."; return false; }
+  if(!store.ok){ errEl.textContent="This page can't reach shared storage, so joining someone else's puzzle won't work here. Starting a new one still does."; return false; }
   await saveMe();
   const res=await store.get(ROOM_KEY(code),true);
-  if(!res){ errEl.textContent="No puzzle with that code."; return; }
-  let data; try{ data=JSON.parse(res.value); }catch(e){ errEl.textContent="That puzzle couldn't be read."; return; }
+  if(!res){ errEl.textContent="No puzzle with that code."; return false; }
+  let data; try{ data=JSON.parse(res.value); }catch(e){ errEl.textContent="That puzzle couldn't be read."; return false; }
   room=null; undoStack=[];redoStack=[];
   clearBranches();
   adopt(data);
@@ -3704,6 +3722,19 @@ async function joinRoom(codeRaw){
   closeSetup();
   flush(); updateIndex();
   toast("Joined puzzle "+code);
+  return true;
+}
+
+/* A link that opens straight into a puzzle. It carries the room server and key
+   too when they are set, so one link is all anyone needs. */
+function roomLink(code){
+  const u=new URL(location.href);
+  u.search="";
+  u.hash="";
+  u.searchParams.set("room",code);
+  if(store.base)u.searchParams.set("server",store.base);
+  if(store.key)u.searchParams.set("k",store.key);
+  return u.toString();
 }
 
 /* Where the rooms live, when the page itself is hosted somewhere that can't
@@ -3784,6 +3815,17 @@ async function rememberLast(){
   try{ await store.set(LAST_KEY,JSON.stringify({at:Date.now(),room}),false); }catch(e){}
 }
 
+/* The address bar becomes the link to this puzzle, so copying out of the
+   browser works as well as the Copy link button. It carries the room server
+   and key when they are set, because a link without them opens nothing. */
+function showRoomLink(code){
+  const link=roomLink(code);
+  const a=document.getElementById("roomcode");
+  if(a){ a.textContent=code; a.href=link; a.title=link; }
+  try{ history.replaceState(null,"",link); }catch(e){}
+  return link;
+}
+
 function enterRoom(code){
   // A code is an invitation. With no server behind it there is nothing to
   // invite anyone to, so showing one only misleads.
@@ -3792,7 +3834,7 @@ function enterRoom(code){
   // record the resume point straight away: on a 5s timer alone, closing the
   // tab quickly after joining lost it
   setTimeout(()=>{ if(room)rememberLast(); },0);
-  document.getElementById("roomcode").textContent=code;
+  showRoomLink(code);
   clearInterval(pollTimer); clearInterval(indexTimer);
   pollTimer=setInterval(poll,POLL_MS);
   indexTimer=setInterval(()=>{ if(room)updateIndex(); },60000);
@@ -3825,9 +3867,25 @@ window.addEventListener("resize",placeBranchPanel);
   document.getElementById("nameIn").value=me.name||"";
   placeBranchPanel();
   await store.probe();
+  const linkRoom=(()=>{
+    try{ return (new URL(location.href)).searchParams.get("room")||""; }catch(e){ return ""; }
+  })();
   offerExe();
   wireServerBox();
   soloNotice();
+  // a link to a puzzle wins over whatever you were last looking at
+  if(linkRoom&&store.ok){
+    document.getElementById("codeIn").value=linkRoom;
+    if(await joinRoom(linkRoom))return;
+    // it did not open. openSetup resets the tab and clears the message, so
+    // put both back afterwards rather than before.
+    const why=errEl.textContent;
+    openSetup(false);
+    switchTab(false);
+    document.getElementById("codeIn").value=linkRoom;
+    errEl.textContent=why||"That puzzle isn't there any more.";
+    return;
+  }
   await resumeLast();
   openSetup(false);
   if(matchMedia("(pointer:fine)").matches)document.getElementById("nameIn").focus();
