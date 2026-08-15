@@ -41,7 +41,7 @@ button{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--graphite);outline-offset:2px}
 
 /* ---------- chrome ---------- */
-.shell{max-width:1180px;margin:0 auto;padding:18px 20px 40px;display:flex;flex-direction:column;min-height:100%}
+.shell{max-width:min(1720px,100%);margin:0 auto;padding:18px 24px 40px;display:flex;flex-direction:column;min-height:100%}
 .masthead{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;
   border-bottom:1px solid var(--rule);padding-bottom:10px;margin-bottom:18px}
 .wordmark{font-weight:700;font-size:22px;letter-spacing:-.02em;line-height:1}
@@ -58,21 +58,17 @@ button{font:inherit;color:inherit}
 /* ---------- layout ---------- */
 .stage{display:grid;grid-template-columns:minmax(0,1fr) 268px 250px;gap:22px;align-items:start;flex:1}
 /* Below this the branch column folds back in with the rest of the panel. */
-@media (max-width:1180px){.stage{grid-template-columns:minmax(0,1fr) 268px}}
+@media (max-width:1320px){.stage{grid-template-columns:minmax(0,1fr) 268px}}
 @media (max-width:860px){.stage{grid-template-columns:minmax(0,1fr);gap:16px}}
 .branchcol{display:flex;flex-direction:column;gap:18px;position:sticky;top:18px}
-@media (max-width:1180px){.branchcol{position:static}}
+@media (max-width:1320px){.branchcol{position:static}}
 /* room for it now that it has a column to itself */
-@media (min-width:1181px){.tree{max-height:min(58vh,520px)}}
+@media (min-width:1321px){.tree{max-height:min(58vh,520px)}}
 
 .sheet{
-  max-width:min(100%,74vh);margin-inline:auto;
+  max-width:min(100%,88vh);margin-inline:auto;
   background:var(--sheet);border:1px solid var(--rule);border-radius:3px;
   box-shadow:var(--shadow);padding:10px;position:relative;
-}
-.sheet::after{ /* plotter registration corner */
-  content:"";position:absolute;right:9px;top:9px;width:11px;height:11px;
-  border-top:1px solid var(--rule);border-right:1px solid var(--rule)
 }
 #board{display:block;width:100%;height:auto;border-radius:2px;touch-action:none;-webkit-user-select:none;user-select:none;cursor:crosshair}
 
@@ -95,7 +91,8 @@ button{font:inherit;color:inherit}
   background:linear-gradient(180deg,color-mix(in srgb,var(--pen) 78%,#fff) 0 38%,var(--pen) 38% 74%,color-mix(in srgb,var(--pen) 72%,#000) 74% 100%);
   clip-path:polygon(0 50%,9px 0,100% 0,100% 100%,9px 100%);
 }
-.pen--idle .pen__barrel{filter:grayscale(.72) opacity(.5)}
+/* Away, not gone: the pen keeps its colour so it still matches their lines
+   on the board. Only the name dims. */
 .pen__meta{min-width:0;display:flex;align-items:baseline;gap:6px;flex:1}
 .pen__name{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pen--idle .pen__name{color:var(--muted)}
@@ -183,6 +180,8 @@ body.trialing #board{cursor:cell}
 .dims__hint{font-family:var(--mono);font-size:10px;color:var(--muted);line-height:1.4;flex:1}
 .dims__hint.warn{color:var(--pen-5)}
 
+.block__toggle{float:right;font-size:9.5px}
+.block--shut .legend{display:none}
 .legend{font-size:12px;line-height:1.6;color:var(--muted);margin:0}
 .legend b{color:var(--graphite);font-weight:500}
 .legend p{margin:0 0 7px}
@@ -232,7 +231,8 @@ body.trialing #board{cursor:cell}
    undecided one is a thin ghost, and a ruled-out one simply is not there.
    Nothing about the controls changes — only what you see. */
 body.weighted .xm{display:none}
-body.weighted .seg{opacity:1;stroke-width:1;stroke:var(--rule)}
+body.weighted .seg{opacity:1;stroke-width:1}
+body.weighted .seg:not(.on){stroke:var(--rule)!important}
 body.weighted .seg.on{stroke-width:6}
 body.weighted .seg.off{opacity:0}
 .xm{stroke:var(--x-mark);stroke-width:2;stroke-linecap:round;opacity:0;transition:opacity .09s}
@@ -283,9 +283,9 @@ body.weighted .seg.off{opacity:0}
   <header class="masthead">
     <div class="wordmark">Plot Room <span>/ slitherlink</span></div>
     <div class="masthead__spacer"></div>
-    <button class="linkbtn" id="creditsBtn">Credits</button>
+    <button class="linkbtn" id="creditsBtn" title="Credits, and how this was made">Credits · AI-made</button>
     <div class="roomchip" id="roomchip" hidden>
-      <span class="tag">Sheet</span><b id="roomcode">····</b>
+      <span class="tag">Puzzle</span><b id="roomcode">····</b>
       <button class="linkbtn" id="copycode" title="Copy the code for someone else to join with">Copy</button>
       <button class="linkbtn" id="leaveroom">Leave</button>
     </div>
@@ -304,12 +304,12 @@ body.weighted .seg.off{opacity:0}
 
     <aside class="panel">
       <section class="block">
-        <h3 class="block__title">Pens <span id="onlinecount"></span></h3>
+        <h3 class="block__title">Players <span id="onlinecount"></span></h3>
         <div class="rack" id="rack"></div>
       </section>
 
       <section class="block">
-        <h3 class="block__title">Sheet</h3>
+        <h3 class="block__title">Progress</h3>
         <div class="readout" id="readout"></div>
         <div class="bar"><i id="progbar"></i></div>
       </section>
@@ -339,10 +339,10 @@ body.weighted .seg.off{opacity:0}
           <button class="btn btn--wide" id="check">Check my lines</button>
           <button class="btn" id="zoomIn">Zoom in</button>
           <button class="btn" id="zoomOut">Zoom out</button>
-          <button class="btn btn--wide" id="zoomReset" hidden>Fit the sheet</button>
-          <p class="panhint">Wheel scrolls · shift+wheel sideways · ctrl+wheel zooms · space-drag or middle-drag moves the sheet · arrow keys nudge</p>
+          <button class="btn btn--wide" id="zoomReset" hidden>Fit the puzzle</button>
+          <p class="panhint">Wheel scrolls · shift+wheel sideways · ctrl+wheel zooms · space-drag or middle-drag moves the board · arrow keys nudge</p>
           <button class="btn btn--wide" id="exportBtn">Export puzzle + progress</button>
-          <button class="btn btn--wide btn--solid" id="newsheet">Load a new sheet</button>
+          <button class="btn btn--wide btn--solid" id="newsheet">Load a new puzzle</button>
         </div>
         <div class="toggles" style="margin-top:13px">
           <label class="tgl"><input type="checkbox" id="optDim" checked><span class="tgl__box"></span>Fade satisfied clues</label>
@@ -352,15 +352,17 @@ body.weighted .seg.off{opacity:0}
       </section>
 
       <section class="block">
-        <h3 class="block__title">Controls</h3>
+        <h3 class="block__title">Controls
+          <button class="linkbtn block__toggle" id="ctrlToggle" aria-expanded="true">hide</button>
+        </h3>
         <div class="legend">
           <p><b>Click</b> a segment between two dots to draw a line.</p>
           <p><b>Shift-click</b> (or right-click) marks it <b>×</b>.</p>
           <p><b>Ctrl-click</b> a square to fill it <span class="swatch swatch--blue"></span>, <b>Alt-click</b> to fill it <span class="swatch swatch--yellow"></span>.</p>
-          <p>Repeating the same click removes the mark. <b>Drag</b> to repeat it across the sheet.</p>
+          <p>Repeating the same click removes the mark. <b>Drag</b> to repeat it across the puzzle.</p>
           <p>Draw one closed loop. Each number says how many of its four sides the loop uses.</p>
           <p>Stuck? <b>Branch</b> off and guess. Your first mark is the branch's premise, circled on the board.</p>
-          <p>Branch again inside a branch to go deeper, or from the sheet for a rival guess.</p>
+          <p>Branch again inside a branch to go deeper, or from the puzzle for a rival guess.</p>
           <p>Hit a contradiction and <b>rule it out</b>: the branch goes, and the opposite of its premise is written one level up.</p>
         </div>
       </section>
@@ -391,11 +393,17 @@ body.weighted .seg.off{opacity:0}
       sides of the loop without saying which is which.
     </p>
     <p class="done__body">
-      Everything else — the shared sheets, the branches, the generator and its
+      Everything else — the shared puzzles, the branches, the generator and its
       solver — was built for this.
     </p>
     <div class="done__acts">
-      <button class="btn btn--solid" id="creditsClose">Back to the sheet</button>
+      <p class="done__body" style="border-top:1px solid var(--rule);padding-top:14px">
+        <b>Made with an AI.</b> This program — the page, the shared puzzles, the
+        branches, the generator and its solver — was written by Claude, an AI
+        assistant, working from a person's instructions. Expect the odd rough
+        edge, and check anything that matters.
+      </p>
+      <button class="btn btn--solid" id="creditsClose">Back to the puzzle</button>
     </div>
   </div>
 </div>
@@ -408,15 +416,15 @@ body.weighted .seg.off{opacity:0}
     <div class="done__stats" id="doneStats"></div>
     <div class="done__acts">
       <button class="btn" id="doneStay">Look at it</button>
-      <button class="btn" id="donePromote" hidden>Put it on the sheet</button>
-      <button class="btn btn--solid" id="doneNew">New sheet</button>
+      <button class="btn" id="donePromote" hidden>Put it on the puzzle</button>
+      <button class="btn btn--solid" id="doneNew">New puzzle</button>
     </div>
   </div>
 </div>
 <div class="veil" id="veil">
   <div class="card">
     <h2 id="cardTitle">Start plotting</h2>
-    <p class="sub" id="cardSub">One puzzle, one sheet, everybody's pens at once. Open a sheet and share the code, or join one that's already running.</p>
+    <p class="sub" id="cardSub">One puzzle, one board, everybody's pens at once. Open a puzzle and share the code, or join one that's already running.</p>
 
     <div class="field">
       <label for="nameIn">Your name on the rack</label>
@@ -424,8 +432,8 @@ body.weighted .seg.off{opacity:0}
     </div>
 
     <div class="tabs" role="tablist">
-      <button class="tab" id="tabNew" role="tab" aria-selected="true">New sheet</button>
-      <button class="tab" id="tabJoin" role="tab" aria-selected="false">Join a sheet</button>
+      <button class="tab" id="tabNew" role="tab" aria-selected="true">New puzzle</button>
+      <button class="tab" id="tabJoin" role="tab" aria-selected="false">Join a puzzle</button>
     </div>
 
     <p class="note solonote" id="soloNote" hidden>Working on your own. Sharing needs somewhere both people can reach: run <b>slink-server</b> on one computer, keep this page in the same folder, and open the address it prints. Everything else works here, and your progress is kept while the tab is open.</p>
@@ -445,11 +453,11 @@ body.weighted .seg.off{opacity:0}
         <label>Clue density</label>
         <div class="chips" id="diffChips"></div>
       </div>
-      <button class="btn btn--solid btn--wide" id="createBtn" style="width:100%">Open the sheet</button>
+      <button class="btn btn--solid btn--wide" id="createBtn" style="width:100%">Open the puzzle</button>
       <div class="imp">
         <input type="file" id="packIn" accept=".json,application/json" hidden>
         <button class="btn btn--wide" id="importBtn" style="width:100%">Import a pack…</button>
-        <p class="imp__hint">Built offline with slink-gen: it uses every core, and big sheets are far quicker there than in a tab.</p>
+        <p class="imp__hint">Built offline with slink-gen: it uses every core, and big puzzles are far quicker there than in a tab.</p>
         <div class="controls" style="margin-top:6px">
           <a class="btn btn--wide" id="getExe" style="width:100%;text-align:center;text-decoration:none" hidden></a>
           <button class="btn btn--wide" id="getGen" style="width:100%">Download slink-gen (needs Node)</button>
@@ -465,7 +473,7 @@ body.weighted .seg.off{opacity:0}
 
     <div id="paneJoin" hidden>
       <div class="field">
-        <label for="codeIn">Sheet code</label>
+        <label for="codeIn">Puzzle code</label>
         <input class="input" id="codeIn" maxlength="4" placeholder="4 letters" autocomplete="off"
                style="text-transform:uppercase;letter-spacing:.3em">
       </div>
@@ -479,7 +487,7 @@ body.weighted .seg.off{opacity:0}
     </div>
 
     <p class="err" id="err"></p>
-    <p class="note">Anything drawn on a sheet is visible to everyone who has its code, including your name on the pen rack.</p>
+    <p class="note">Anything drawn on a puzzle is visible to everyone who has its code, including your name in the player list.</p>
   </div>
 </div>
 
@@ -1196,7 +1204,7 @@ function generateAsync(R,C,diffKey,onProgress){
       while(performance.now()-t0<26){
         if(phase===0){
           if(attempt++>attemptCap){
-            reject(new Error(`Gave up after ${attemptCap} attempts on ${R}×${C}. Big sheets build far quicker in slink-gen — generate one there and import it.`));return;}
+            reject(new Error(`Gave up after ${attemptCap} attempts on ${R}×${C}. Big puzzles build far quicker in slink-gen — generate one there and import it.`));return;}
           if(onProgress)onProgress({stage:"loop",attempt,R,C});
           const loop=loopEdges(g,growLoop(R,C,shapeMs));
           const full=cluesFromLoop(g,loop);
@@ -1716,9 +1724,29 @@ function penSlot(id){
   if(!id)return -1;
   let h=2166136261;
   for(let i=0;i<id.length;i++){ h^=id.charCodeAt(i); h=Math.imul(h,16777619); }
-  return (h>>>0)%PENS.length;
+  return (h>>>0)%1000000;         // an identity, not a colour slot
 }
-function penVar(idx){ return idx<0?"var(--graphite)":`var(${PENS[idx%PENS.length]})`; }
+
+/* Two people can hash to the same pen. Walking to the next free one, over the
+   player list sorted by id, gives everybody a different colour and gives every
+   client the same answer without depending on the order people arrived. */
+let penMap=null;
+function buildPenMap(){
+  penMap=new Map();
+  const ids=[...((room&&room.players)||[])].map(p=>p.id).filter(Boolean).sort();
+  const used=new Set();
+  for(const id of ids){
+    const h=penSlot(id);
+    let s=h%PENS.length;
+    for(let i=0;i<PENS.length&&used.has(s);i++)s=(s+1)%PENS.length;
+    used.add(s); penMap.set(h,s);
+  }
+}
+function penVar(idx){
+  if(idx<0)return "var(--graphite)";
+  const s=(penMap&&penMap.has(idx))?penMap.get(idx):(idx%PENS.length);
+  return `var(${PENS[s]})`;
+}
 
 function buildBoard(){
   const {R,C,E,VC,NC}=g;
@@ -1830,6 +1858,7 @@ function render(){
   /* Pen colours exist to tell people apart. On your own there is nobody to
      tell apart, so the sheet reads better in plain graphite. */
   const soloPen=(room.players||[]).filter(p=>now()-p.seen<IDLE_MS).length<2;
+  buildPenMap();
 
   for(let i=0;i<E;i++){
     const s=room.edges[i];
@@ -1863,7 +1892,7 @@ function render(){
   }
   const info=loopStatus();
   document.getElementById("statline").textContent =
-    room.solvedAt ? "Loop closed — sheet complete" :
+    room.solvedAt ? "Loop closed — puzzle complete" :
     info.on ? `${info.on} segment${info.on===1?"":"s"} drawn` : "Nothing drawn yet";
   const given=room.given!=null?room.given:room.clues.filter(v=>v>=0).length;
   document.getElementById("sizeline").textContent=
@@ -1941,10 +1970,11 @@ function renderRack(){
   rack.innerHTML="";
   live.forEach(p=>{
     const idx=penSlot(p.id);      // same rule the board uses
+    void idx;
     const idle=now()-p.seen>IDLE_MS;
     const el=document.createElement("div");
     el.className="pen"+(p.id===me.id?" pen--you":"")+(idle?" pen--idle":"");
-    el.style.setProperty("--pen",`var(${PENS[idx%PENS.length]})`);
+    el.style.setProperty("--pen",penVar(penSlot(p.id)));
     el.innerHTML=`<div class="pen__barrel"></div><div class="pen__meta">
       <span class="pen__name"></span></div>`;
     el.querySelector(".pen__name").textContent=p.name+(p.id===me.id?" (you)":"");
@@ -1981,7 +2011,7 @@ function showDone(fromBranch){
   ];
   document.getElementById("doneWhere").textContent=fromBranch?"BRANCH COMPLETE":"SHEET COMPLETE";
   document.getElementById("doneBody").textContent=fromBranch
-    ? "You closed the loop inside a branch, so its premise was right all along. Nobody else can see it until you put it on the sheet."
+    ? "You closed the loop inside a branch, so its premise was right all along. Nobody else can see it until you put it on the puzzle."
     : "Every clue is satisfied and the loop is a single closed circuit.";
   document.getElementById("doneStats").innerHTML=stats
     .map(([k,v])=>`<span>${k}<b>${v}</b></span>`).join("");
@@ -1990,6 +2020,28 @@ function showDone(fromBranch){
 }
 
 document.getElementById("doneStay").onclick=()=>{document.getElementById("done").hidden=true;};
+/* The controls are worth reading once and then in the way. Whether they are
+   folded away is remembered per browser. */
+(function wireControls(){
+  const btn=document.getElementById("ctrlToggle");
+  if(!btn)return;
+  const block=btn.closest(".block");
+  const apply=shut=>{
+    block.classList.toggle("block--shut",shut);
+    btn.textContent=shut?"show":"hide";
+    btn.setAttribute("aria-expanded",String(!shut));
+  };
+  let shut=false;
+  try{ shut=window.localStorage.getItem("sl:controls")==="shut"; }catch(e){}
+  apply(shut);
+  btn.onclick=e=>{
+    e.stopPropagation();
+    shut=!shut;
+    apply(shut);
+    try{ window.localStorage.setItem("sl:controls",shut?"shut":"open"); }catch(e){}
+  };
+})();
+
 document.getElementById("creditsBtn").onclick=()=>{document.getElementById("credits").hidden=false;};
 document.getElementById("creditsClose").onclick=()=>{document.getElementById("credits").hidden=true;};
 document.addEventListener("keydown",e=>{
@@ -2021,11 +2073,11 @@ document.getElementById("donePromote").onclick=()=>{
   if(steps.length){undoStack.push(steps);redoStack=[];}
   void node;
   render(); flush();
-  toast("Solution put on the sheet");
+  toast("Solution put on the puzzle");
 };
 
 function celebrate(){
-  toast("Loop closed. Nice sheet.");
+  toast("Loop closed. Nice work.");
   if(matchMedia("(prefers-reduced-motion: reduce)").matches)return;
   // trace the finished loop once, in order
   const {VC}=g;
@@ -2669,7 +2721,7 @@ function findTrouble(st){
   if(anyLine&&!info.solved){
     let closed=true;
     for(let v=0;v<VC;v++) if(deg[v]!==0&&deg[v]!==2){closed=false;break;}
-    if(closed)msgs.push("the loop closes early, leaving the sheet unfinished");
+    if(closed)msgs.push("the loop closes early, leaving the puzzle unfinished");
   }
   return {bad,msgs:[...new Set(msgs)],solved:info.solved};
 }
@@ -2744,7 +2796,7 @@ function createBranch(){
   (parent||trunk).children.push(node.id);
   pushTree(node);
   switchBranch(node.id);
-  toast(parent?"Branched off "+(premiseLabel(parent.premise)):"New branch off the sheet");
+  toast(parent?"Branched off "+(premiseLabel(parent.premise)):"New branch off the puzzle");
 }
 
 function dropSubtree(n){
@@ -2775,7 +2827,7 @@ function acceptBranch(){
   const trouble=findTrouble();
   if(trouble.msgs.length&&
      !confirm(trouble.msgs[0][0].toUpperCase()+trouble.msgs[0].slice(1)
-       +" on this branch. Accept it onto the sheet anyway?"))return;
+       +" on this branch. Accept it onto the puzzle anyway?"))return;
 
   for(const id of node.children.slice()){       // offshoots hang on the parent now
     const c=branches.get(id);
@@ -2811,7 +2863,7 @@ function acceptBranch(){
     redoStack=[];
   }
   render(); flush();
-  const where=parentId?"the branch above":"the sheet";
+  const where=parentId?"the branch above":"the puzzle";
   toast(steps.length?`${steps.length} mark${steps.length===1?"":"s"} accepted onto ${where}`
                     :"That branch had nothing to accept");
 }
@@ -2828,7 +2880,7 @@ function rejectBranch(deduce){
     const neg=negate(p);
     if(p.kind==="edge")setEdgeUser(p.idx,neg,false);
     else setCellUser(p.idx,neg,false);
-    const where=parentId?"on the branch above":"on the sheet";
+    const where=parentId?"on the branch above":"on the puzzle";
     toast(premiseLabel(p)+" ruled out — opposite written "+where);
   }else if(deduce){
     toast("That branch has no premise on the board to rule out");
@@ -2986,7 +3038,7 @@ function renderTree(){
     if(t.solved)return {text:"CLOSES",kind:"good"};
     return null;
   };
-  row("Master",0,null,null,"the shared sheet everyone works on");
+  row("Master",0,null,null,"the shared puzzle everyone works on");
   const walk=(ids,depth)=>ids.forEach(id=>{
     const n=branches.get(id); if(!n)return;
     row(branchLabel(n),depth,id,flagFor(n),premiseLabel(n.premise));
@@ -3012,8 +3064,8 @@ function renderTrial(){
   if(!on){
     trialEls.tag.textContent=""; trialEls.tag.className="";
     trialEls.copy.textContent=branches.size
-      ? "Pick a branch to work on it, or start another from the sheet."
-      : "Branch off to test a guess. Branches are yours alone — the only way one reaches the sheet is by being disproved.";
+      ? "Pick a branch to work on it, or start another from the puzzle."
+      : "Branch off to test a guess. Branches are yours alone — the only way one reaches the puzzle is by being disproved.";
     return;
   }
   const t=findTrouble();
@@ -3025,7 +3077,7 @@ function renderTrial(){
       (holds?" — so the premise is wrong. Rule it out.":".");
   }else if(t.solved){
     trialEls.tag.textContent="CLOSES THE LOOP"; trialEls.tag.className="good";
-    trialEls.copy.textContent="This branch finishes the sheet, so its premise was right. Nothing to rule out.";
+    trialEls.copy.textContent="This branch finishes the puzzle, so its premise was right. Nothing to rule out.";
   }else{
     trialEls.tag.textContent="NOTHING BROKEN YET"; trialEls.tag.className="good";
     trialEls.copy.textContent=trial.premise
@@ -3068,15 +3120,15 @@ function isOwner(){
   return !room||!room.owner||(me&&room.owner===me.id);
 }
 function ownerLabel(){
-  return (room&&room.ownerName)?room.ownerName:"whoever opened this sheet";
+  return (room&&room.ownerName)?room.ownerName:"whoever opened this puzzle";
 }
 function applyOwnerRules(){
   const btn=document.getElementById("newsheet");
   if(!btn)return;
   const mine=isOwner();
   btn.disabled=!mine;
-  btn.textContent=mine?"Load a new sheet":"Only "+ownerLabel()+" can change the puzzle";
-  btn.title=mine?"":"Leave the sheet to start one of your own.";
+  btn.textContent=mine?"Load a new puzzle":"Only "+ownerLabel()+" can change the puzzle";
+  btn.title=mine?"":"Leave to start one of your own.";
 }
 
 /* ============================================================
@@ -3098,7 +3150,7 @@ document.getElementById("check").onclick=()=>{
   }
   setTimeout(()=>badEls.forEach(b=>b.style.opacity=0),2600);
   const sol=solutionFor();
-  if(!sol){ toast("Couldn't check this sheet"); return; }
+  if(!sol){ toast("Couldn't check this puzzle"); return; }
   ensureCells(room);
 
   let wrongLines=0, wrongX=0;
@@ -3209,7 +3261,7 @@ document.getElementById("exportBtn").onclick=async()=>{
      than leaving a second copy in the downloads folder. Writing in place needs
      the file picker API, so fall back to a normal download elsewhere. */
   if(loadedFrom&&loadedFrom.handle){
-    const update=confirm(`Update ${loadedFrom.name} with the current sheet?\n\n`
+    const update=confirm(`Update ${loadedFrom.name} with the current puzzle and progress?\n\n`
       +`OK replaces that file. Cancel saves a separate copy.`);
     if(update){
       try{
@@ -3225,7 +3277,7 @@ document.getElementById("exportBtn").onclick=async()=>{
       +`the same name and you can overwrite when asked. Cancel to use a new name.`);
     if(same){ download(loadedFrom.name,text); toast("Saved as "+loadedFrom.name); return; }
   }
-  download(`slitherlink-${room.code||"sheet"}.json`,text);
+  download(`slitherlink-${room.code||"puzzle"}.json`,text);
   toast("Exported puzzle and progress");
 };
 
@@ -3260,13 +3312,13 @@ document.getElementById("newsheet").onclick=()=>{
     toast("Only "+ownerLabel()+" can change this puzzle");
     return;
   }
-  if(!confirm("Load a new sheet for everyone in this room? The current one is cleared."))return;
+  if(!confirm("Load a new puzzle for everyone in this room? The current one is cleared."))return;
   clearBranches();
   openSetup(true);
 };
 document.getElementById("copycode").onclick=async()=>{
   try{ await navigator.clipboard.writeText(room.code); toast("Code "+room.code+" copied"); }
-  catch(e){ toast("Sheet code: "+room.code); }
+  catch(e){ toast("Puzzle code: "+room.code); }
 };
 document.getElementById("leaveroom").onclick=()=>{
   clearBranches();
@@ -3306,7 +3358,7 @@ function dimsOk(){
 }
 function setDims(R,C){ rowsIn.value=R; colsIn.value=C; refreshSize(); }
 
-/* honest about what a big sheet or a maximal sweep is going to cost */
+/* honest about what a big puzzle or a maximal sweep is going to cost */
 function refreshSize(){
   const [R,C]=rawDims(), ok=dimsOk(), n=ok?R*C:0;
   document.querySelectorAll("#sizeChips .chip").forEach((b,i)=>
@@ -3396,10 +3448,10 @@ function buildChips(){
 function openSetup(keepRoom){
   keepRoomOnClose=!!keepRoom;
   veil.hidden=false;
-  document.getElementById("cardTitle").textContent=keepRoom?"New sheet for this room":"Start plotting";
+  document.getElementById("cardTitle").textContent=keepRoom?"New puzzle for this room":"Start plotting";
   document.getElementById("cardSub").textContent=keepRoom
-    ? "Everyone on "+room.code+" gets the new sheet as soon as it's ready."
-    : "One puzzle, one sheet, everybody's pens at once. Open a sheet and share the code, or join one that's already running.";
+    ? "Everyone on "+room.code+" gets the new puzzle as soon as it's ready."
+    : "One puzzle, one board, everybody's pens at once. Open a puzzle and share the code, or join one that's already running.";
   document.querySelector(".tabs").hidden=!!keepRoom;
   document.getElementById("paneJoin").hidden=true;
   document.getElementById("paneNew").hidden=false;
@@ -3461,7 +3513,7 @@ async function openPuzzle(puz){
   lastWrite=Date.now();
   updateIndex();
   closeSetup();
-  if(!keepRoomOnClose)toast("Sheet "+code+" is open — share the code");
+  if(!keepRoomOnClose)toast("Puzzle "+code+" is open — share the code");
 }
 
 /* ---- importing packs built by slink-gen ---- */
@@ -3625,11 +3677,11 @@ document.getElementById("createBtn").onclick=async()=>{
     puz.diff=pickDiff;
     await openPuzzle(puz);
   }catch(e){
-    errEl.textContent=e.message||"Something went wrong building that sheet.";
+    errEl.textContent=e.message||"Something went wrong building that puzzle.";
   }
   generating=false;
   genStop();
-  btn.textContent="Open the sheet"; refreshSize();
+  btn.textContent="Open the puzzle"; refreshSize();
 };
 
 document.getElementById("joinBtn").onclick=()=>joinRoom(document.getElementById("codeIn").value);
@@ -3638,12 +3690,12 @@ document.getElementById("codeIn").addEventListener("keydown",e=>{if(e.key==="Ent
 async function joinRoom(codeRaw){
   const code=(codeRaw||"").trim().toUpperCase();
   errEl.textContent="";
-  if(code.length!==4){ errEl.textContent="Sheet codes are 4 characters."; return; }
-  if(!store.ok){ errEl.textContent="This page can't reach shared storage, so joining someone else's sheet won't work here. Starting a new sheet still does."; return; }
+  if(code.length!==4){ errEl.textContent="Puzzle codes are 4 characters."; return; }
+  if(!store.ok){ errEl.textContent="This page can't reach shared storage, so joining someone else's puzzle won't work here. Starting a new one still does."; return; }
   await saveMe();
   const res=await store.get(ROOM_KEY(code),true);
-  if(!res){ errEl.textContent="No sheet with that code."; return; }
-  let data; try{ data=JSON.parse(res.value); }catch(e){ errEl.textContent="That sheet couldn't be read."; return; }
+  if(!res){ errEl.textContent="No puzzle with that code."; return; }
+  let data; try{ data=JSON.parse(res.value); }catch(e){ errEl.textContent="That puzzle couldn't be read."; return; }
   room=null; undoStack=[];redoStack=[];
   clearBranches();
   adopt(data);
@@ -3651,7 +3703,7 @@ async function joinRoom(codeRaw){
   enterRoom(code);
   closeSetup();
   flush(); updateIndex();
-  toast("Joined sheet "+code);
+  toast("Joined puzzle "+code);
 }
 
 /* Where the rooms live, when the page itself is hosted somewhere that can't
@@ -3706,7 +3758,7 @@ function soloNotice(){
   const jn=document.getElementById("joinNote");
   if(jn)jn.textContent=solo
     ? "Sharing needs a room server. Run slink-server on one computer with this page beside it, and everyone opens the address it prints."
-    : "Ask whoever started the sheet for its 4-letter code — it's shown at the top of their window, next to Copy.";
+    : "Ask whoever started the puzzle for its 4-letter code — it's shown at the top of their window, next to Copy.";
 }
 
 /* remember the sheet you were on and pick it back up next time */
@@ -3757,7 +3809,7 @@ function placeBranchPanel(){
   const col=document.getElementById("branchcol");
   const panel=document.querySelector(".panel");
   if(!block||!col||!panel)return;
-  const wide=window.innerWidth>1180;
+  const wide=window.innerWidth>1320;   // matches the css breakpoint
   col.hidden=!wide;
   if(wide&&block.parentElement!==col)col.appendChild(block);
   if(!wide&&block.parentElement!==panel)panel.insertBefore(block,panel.children[2]||null);
