@@ -1,5 +1,5 @@
 /* ============================================================
-   4. Shared sheet state
+   4. Shared puzzle state
    ============================================================ */
 const PENS = ["--pen-1", "--pen-2", "--pen-3", "--pen-4", "--pen-5", "--pen-6"];
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -12,7 +12,7 @@ const POLL_MS = 3000,
   IDLE_MS = 45000;
 
 const store = {
-  /* Three ways to keep a sheet, tried in order:
+  /* Three ways to keep a puzzle, tried in order:
        artifact - window.storage, which only exists in the Claude runtime
        http     - a slink-gen room server, when the page is served from one
        memory   - on your own, nothing shared                            */
@@ -25,49 +25,49 @@ const store = {
      there and is remembered, so the link only needs to be used once. */
   base: (() => {
     try {
-      const u = new URL(location.href);
-      let sv = u.searchParams.get("server");
+      const url = new URL(location.href);
+      let sv = url.searchParams.get("server");
       if (sv !== null) {
-        u.searchParams.delete("server");
-        history.replaceState(null, "", u.toString());
+        url.searchParams.delete("server");
+        history.replaceState(null, "", url.toString());
         try {
           sv
             ? window.localStorage.setItem("sl:server", sv)
             : window.localStorage.removeItem("sl:server");
-        } catch (e) {}
+        } catch (edge) {}
       } else {
         try {
           sv = window.localStorage.getItem("sl:server") || "";
-        } catch (e) {
+        } catch (edge) {
           sv = "";
         }
       }
       return (sv || "").replace(/\/+$/, "");
-    } catch (e) {
+    } catch (edge) {
       return "";
     }
   })(),
   key: (() => {
     try {
-      const u = new URL(location.href);
-      const k = u.searchParams.get("k");
-      if (k !== null) {
-        u.searchParams.delete("k");
-        history.replaceState(null, "", u.toString());
+      const url = new URL(location.href);
+      const cell = url.searchParams.get("k");
+      if (cell !== null) {
+        url.searchParams.delete("k");
+        history.replaceState(null, "", url.toString());
         // remembered like the server address, so the full link is needed once
         try {
-          k
-            ? window.localStorage.setItem("sl:key", k)
+          cell
+            ? window.localStorage.setItem("sl:key", cell)
             : window.localStorage.removeItem("sl:key");
-        } catch (e) {}
-        return k || "";
+        } catch (edge) {}
+        return cell || "";
       }
       try {
         return window.localStorage.getItem("sl:key") || "";
-      } catch (e) {
+      } catch (edge) {
         return "";
       }
-    } catch (e) {
+    } catch (edge) {
       return "";
     }
   })(),
@@ -75,23 +75,23 @@ const store = {
     return this.base + "/kv/" + path + (this.key ? "?k=" + encodeURIComponent(this.key) : "");
   },
 
-  /* Private things — your name, the sheet you were last on — belong to you,
+  /* Private things — your name, the puzzle you were last on — belong to you,
      not to the room. Outside the artifact runtime they go in this browser's
      own storage; sending them to a shared server would have every player
      overwriting everyone else's. */
-  localGet(k) {
+  localGet(cell) {
     try {
-      const v = window.localStorage.getItem(k);
-      return v === null ? null : { key: k, value: v };
-    } catch (e) {
-      return this.mem.has(k) ? { key: k, value: this.mem.get(k) } : null;
+      const value = window.localStorage.getItem(cell);
+      return value === null ? null : { key: cell, value: value };
+    } catch (edge) {
+      return this.mem.has(cell) ? { key: cell, value: this.mem.get(cell) } : null;
     }
   },
-  localSet(k, v) {
+  localSet(cell, value) {
     try {
-      window.localStorage.setItem(k, v);
-    } catch (e) {}
-    return { key: k, value: v };
+      window.localStorage.setItem(cell, value);
+    } catch (edge) {}
+    return { key: cell, value: value };
   },
   get ok() {
     return this.mode === "artifact" || this.mode === "http";
@@ -109,75 +109,81 @@ const store = {
         await window.storage.set("sl:probe", String(Date.now()), true);
         this.mode = "artifact";
         return true;
-      } catch (e) {
+      } catch (edge) {
         /* fall through and try a server */
       }
     }
     if (this.base || (typeof location !== "undefined" && /^https?:$/.test(location.protocol))) {
-      try {
-        const r = await fetch(this.base + "/kv/__health", { cache: "no-store" });
-        if (r.ok) {
-          this.mode = "http";
-          this.needsKey = (await r.text()).includes("key") && !this.key;
-          return true;
+      /* One missed answer should not decide this. A host that has been idle
+         takes a moment to wake, and being told you are on your own when a
+         server is right there is the worst way to get it wrong. */
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const r = await fetch(this.base + "/kv/__health", { cache: "no-store" });
+          if (r.ok) {
+            this.mode = "http";
+            this.needsKey = (await r.text()).includes("key") && !this.key;
+            return true;
+          }
+        } catch (edge) {
+          /* not answering yet */
         }
-      } catch (e) {
-        /* not served by a room server */
+        if (attempt < 2) await new Promise(go => setTimeout(go, 400 * (attempt + 1)));
       }
     }
     this.mode = "memory";
     return false;
   },
 
-  async get(k, shared) {
+  async get(cell, shared) {
     if (this.mode === "artifact") {
       try {
-        return await window.storage.get(k, shared);
-      } catch (e) {}
+        return await window.storage.get(cell, shared);
+      } catch (edge) {}
     } else if (shared === false) {
-      return this.localGet(k);
+      return this.localGet(cell);
     } else if (this.mode === "http") {
       try {
-        const r = await fetch(this.kv(encodeURIComponent(k)), { cache: "no-store" });
+        const r = await fetch(this.kv(encodeURIComponent(cell)), { cache: "no-store" });
         if (r.status === 404) return null;
         if (r.status === 401) {
           this.denied = true;
           return null;
         }
-        if (r.ok) return { key: k, value: await r.text() };
-      } catch (e) {}
+        if (r.ok) return { key: cell, value: await r.text() };
+      } catch (edge) {}
     }
-    return this.mem.has(k) ? { key: k, value: this.mem.get(k) } : null;
+    return this.mem.has(cell) ? { key: cell, value: this.mem.get(cell) } : null;
   },
 
-  async set(k, v, shared) {
-    this.mem.set(k, v);
+  async set(cell, value, shared) {
+    this.mem.set(cell, value);
     if (this.mode === "artifact") {
       try {
-        return await window.storage.set(k, v, shared);
-      } catch (e) {
+        return await window.storage.set(cell, value, shared);
+      } catch (edge) {
         this.mode = "memory";
       }
     } else if (shared === false) {
-      return this.localSet(k, v);
+      return this.localSet(cell, value);
     } else if (this.mode === "http") {
       try {
-        const r = await fetch(this.kv(encodeURIComponent(k)), { method: "PUT", body: v });
+        const r = await fetch(this.kv(encodeURIComponent(cell)), { method: "PUT", body: value });
         if (r.status === 401) this.denied = true;
-      } catch (e) {
+      } catch (edge) {
         /* keep playing from memory; the next write may get through */
       }
     }
-    return { key: k, value: v };
+    return { key: cell, value: value };
   },
 };
 
 let me = null; // {id,name}
 let room = null; // last merged shared state
-let engine = null; // engine for the current sheet
+let engine = null; // engine for the current puzzle
 let pending = []; // ops not yet written
 let recent = []; // ops kept briefly so a lost write can heal
-let trial = null; // snapshot of the sheet while a fork is being tried
+let trial = null; // snapshot of the puzzle while a branch is being tried
 let tOffset = 0; // clock alignment with other pens
 let pollTimer = null,
   indexTimer = null,
@@ -228,7 +234,7 @@ function blankRoom(code, puz) {
 }
 
 function playerIdx(r, id) {
-  return r.players.findIndex(p => p.id === id);
+  return r.players.findIndex(player => player.id === id);
 }
 
 function touchMe(r) {
@@ -242,13 +248,13 @@ function touchMe(r) {
   return i;
 }
 
-/* sheets made before cell marks existed arrive without these fields */
+/* puzzles made before cell marks existed arrive without these fields */
 function ensureCells(r) {
-  const n = r.R * r.C;
-  if (typeof r.cells !== "string" || r.cells.length !== n) r.cells = "0".repeat(n);
-  if (!Array.isArray(r.ct) || r.ct.length !== n) r.ct = new Array(n).fill(0);
-  if (typeof r.diag !== "string" || r.diag.length !== n) r.diag = "0".repeat(n);
-  if (!Array.isArray(r.dt) || r.dt.length !== n) r.dt = new Array(n).fill(0);
+  const node = r.R * r.C;
+  if (typeof r.cells !== "string" || r.cells.length !== node) r.cells = "0".repeat(node);
+  if (!Array.isArray(r.ct) || r.ct.length !== node) r.ct = new Array(node).fill(0);
+  if (typeof r.diag !== "string" || r.diag.length !== node) r.diag = "0".repeat(node);
+  if (!Array.isArray(r.dt) || r.dt.length !== node) r.dt = new Array(node).fill(0);
   if (!r.rels || typeof r.rels !== "object") r.rels = {};
   if (!r.rt || typeof r.rt !== "object") r.rt = {};
   return r;
@@ -258,29 +264,29 @@ function applyOp(r, op) {
   if (op.r !== undefined) {
     // a claim about two squares
     ensureCells(r);
-    const k = op.r;
-    if (op.t <= (r.rt[k] || 0)) return false;
-    if (op.val === "0") delete r.rels[k];
-    else r.rels[k] = op.val;
-    r.rt[k] = op.t;
+    const cell = op.r;
+    if (op.t <= (r.rt[cell] || 0)) return false;
+    if (op.val === "0") delete r.rels[cell];
+    else r.rels[cell] = op.val;
+    r.rt[cell] = op.t;
     return true;
   }
   if (op.d !== undefined) {
     // diagonal scribble, no gameplay effect
     ensureCells(r);
-    const k = op.d;
-    if (op.t <= r.dt[k]) return false;
-    r.diag = r.diag.slice(0, k) + op.val + r.diag.slice(k + 1);
-    r.dt[k] = op.t;
+    const cell = op.d;
+    if (op.t <= r.dt[cell]) return false;
+    r.diag = r.diag.slice(0, cell) + op.val + r.diag.slice(cell + 1);
+    r.dt[cell] = op.t;
     return true;
   }
   if (op.k !== undefined) {
     // cell mark
     ensureCells(r);
-    const k = op.k;
-    if (op.t <= r.ct[k]) return false;
-    r.cells = r.cells.slice(0, k) + op.val + r.cells.slice(k + 1);
-    r.ct[k] = op.t;
+    const cell = op.k;
+    if (op.t <= r.ct[cell]) return false;
+    r.cells = r.cells.slice(0, cell) + op.val + r.cells.slice(cell + 1);
+    r.ct[cell] = op.t;
     return true;
   }
   const i = op.e;
@@ -292,10 +298,10 @@ function applyOp(r, op) {
 }
 
 function mergePlayers(base, incoming) {
-  for (const p of incoming) {
-    const j = base.findIndex(q => q.id === p.id);
-    if (j < 0) base.push({ ...p });
-    else if (p.seen > base[j].seen) base[j] = { ...p };
+  for (const player of incoming) {
+    const j = base.findIndex(other => other.id === player.id);
+    if (j < 0) base.push({ ...player });
+    else if (player.seen > base[j].seen) base[j] = { ...player };
   }
 }
 
@@ -320,7 +326,7 @@ function adopt(remote) {
     render();
     return;
   }
-  // merges are against the sheet, so swap the branch view out for the moment
+  // merges are against the master, so swap the branch view out for the moment
   const branchView = trial
     ? { edges: room.edges, cells: room.cells, diag: room.diag, eo: room.eo }
     : null;
@@ -339,14 +345,14 @@ function adopt(remote) {
   }
   ensureCells(room);
   ensureCells(remote);
-  for (let k = 0; k < remote.ct.length; k++) {
-    if (remote.ct[k] > room.ct[k]) {
-      room.cells = room.cells.slice(0, k) + remote.cells[k] + room.cells.slice(k + 1);
-      room.ct[k] = remote.ct[k];
+  for (let cell = 0; cell < remote.ct.length; cell++) {
+    if (remote.ct[cell] > room.ct[cell]) {
+      room.cells = room.cells.slice(0, cell) + remote.cells[cell] + room.cells.slice(cell + 1);
+      room.ct[cell] = remote.ct[cell];
     }
-    if (remote.dt[k] > room.dt[k]) {
-      room.diag = room.diag.slice(0, k) + remote.diag[k] + room.diag.slice(k + 1);
-      room.dt[k] = remote.dt[k];
+    if (remote.dt[cell] > room.dt[cell]) {
+      room.diag = room.diag.slice(0, cell) + remote.diag[cell] + room.diag.slice(cell + 1);
+      room.dt[cell] = remote.dt[cell];
     }
   }
   for (const key in remote.rt) {
@@ -356,7 +362,7 @@ function adopt(remote) {
       room.rt[key] = remote.rt[key];
     }
   }
-  // the sheet is in room.* right now, so capture it before anything re-derives
+  // the master is in room.* right now, so capture it before anything re-derives
   if (branchView) trunk.saved = boardSnapshot();
   // branches merge per id, newest record wins, tombstones included
   ensureTree(room);
@@ -402,9 +408,9 @@ function adopt(remote) {
   }
   mergePlayers(room.players, remote.players);
   if (remote.solvedAt && !room.solvedAt) room.solvedAt = remote.solvedAt;
-  // heal: re-send anything of mine the sheet never received
+  // heal: re-send anything of mine the master never received
   const cutoff = now() - 15000;
-  recent = recent.filter(o => o.t > cutoff);
+  recent = recent.filter(op2 => op2.t > cutoff);
   for (const op of recent) {
     const stale =
       op.d !== undefined
@@ -423,12 +429,12 @@ function adopt(remote) {
 async function flush() {
   if (!room || writing) return;
   writing = true;
-  /* What gets written is the sheet, which lives in trunk.saved while a branch
-     is open. The board itself is left alone: swapping room over to the sheet
+  /* What gets written is the master, which lives in trunk.saved while a branch
+     is open. The board itself is left alone: swapping room over to the master
      for the duration of the round trip made the branch visibly flash back to
-     the sheet on every write. */
+     the master on every write. */
   const onBranch = !!trial;
-  const sheet = onBranch ? trunk.saved || boardSnapshot() : null;
+  const masterBoard = onBranch ? trunk.saved || boardSnapshot() : null;
   const mine = pending;
   pending = [];
   try {
@@ -443,10 +449,10 @@ async function flush() {
       base = onBranch
         ? {
             ...room,
-            edges: sheet.edges,
-            cells: sheet.cells,
-            diag: sheet.diag,
-            eo: sheet.eo.slice(),
+            edges: masterBoard.edges,
+            cells: masterBoard.cells,
+            diag: masterBoard.diag,
+            eo: masterBoard.eo.slice(),
           }
         : room;
     }
@@ -483,7 +489,7 @@ async function flush() {
     for (const op of pending) applyOp(room, op);
     /* Gate on the branch open *now*, not the one open when this write began:
        switching (or accepting) during the round trip would otherwise leave the
-       sheet's board on screen with the branch's marks missing. */
+       master's board on screen with the branch's marks missing. */
     if (trial || onBranch) {
       if (onBranch || !view) trunk.saved = boardSnapshot(); // the freshly merged sheet
       syncTreeFromRoom();
@@ -498,28 +504,28 @@ async function flush() {
       }
     }
     render();
-  } catch (e) {
+  } catch (edge) {
     pending = mine.concat(pending); // put them back, try next tick
   }
   writing = false;
 }
 
-function queueOp(e, val) {
+function queueOp(edge, val) {
   if (trial) {
-    // goes into the branch, not the sheet
-    const v = String(val);
-    if (room.edges[e] === v) return false;
-    notePremise("edge", e, room.edges[e], v);
-    room.edges = room.edges.slice(0, e) + v + room.edges.slice(e + 1);
-    room.eo[e] = penSlot(me.id);
-    recordMark(trial, "edge", e, v);
+    // goes into the branch, not the master
+    const value = String(val);
+    if (room.edges[edge] === value) return false;
+    notePremise("edge", edge, room.edges[edge], value);
+    room.edges = room.edges.slice(0, edge) + value + room.edges.slice(edge + 1);
+    room.eo[edge] = penSlot(me.id);
+    recordMark(trial, "edge", edge, value);
     return true;
   }
-  const op = { e, val: String(val), t: now(), by: penSlot(me.id) };
+  const op = { e: edge, val: String(val), t: now(), by: penSlot(me.id) };
   if (playerIdx(room, me.id) < 0) touchMe(room);
   if (!applyOp(room, op)) return false;
-  const p = room.players[op.by];
-  if (p) p.ops = (p.ops || 0) + 1;
+  const player = room.players[op.by];
+  if (player) player.ops = (player.ops || 0) + 1;
   pending.push(op);
   recent.push(op);
   clearTimeout(flushTimer);
@@ -529,21 +535,21 @@ function queueOp(e, val) {
 
 /* A claim that two squares lie on the same side of the loop, or on opposite
    sides. Unlike a colour it says nothing about which side is which. */
-function relKey(a, b) {
-  return a < b ? a + ":" + b : b + ":" + a;
+function relKey(item, btn) {
+  return item < btn ? item + ":" + btn : btn + ":" + item;
 }
 
 function queueRel(key, val) {
   ensureCells(room);
-  const v = String(val);
-  if ((room.rels[key] || "0") === v) return false;
+  const value = String(val);
+  if ((room.rels[key] || "0") === value) return false;
   if (trial) {
-    if (v === "0") delete room.rels[key];
-    else room.rels[key] = v;
-    recordMark(trial, "rel", key, v);
+    if (value === "0") delete room.rels[key];
+    else room.rels[key] = value;
+    recordMark(trial, "rel", key, value);
     return true;
   }
-  const op = { r: key, val: v, t: now() };
+  const op = { r: key, val: value, t: now() };
   if (!applyOp(room, op)) return false;
   pending.push(op);
   recent.push(op);
@@ -552,16 +558,16 @@ function queueRel(key, val) {
   return true;
 }
 
-function queueDiag(k, val) {
+function queueDiag(cell, val) {
   ensureCells(room);
-  const v = String(val);
-  if (room.diag[k] === v) return false;
+  const value = String(val);
+  if (room.diag[cell] === value) return false;
   if (trial) {
-    room.diag = room.diag.slice(0, k) + v + room.diag.slice(k + 1);
-    recordMark(trial, "diag", k, v);
+    room.diag = room.diag.slice(0, cell) + value + room.diag.slice(cell + 1);
+    recordMark(trial, "diag", cell, value);
     return true;
   }
-  const op = { d: k, val: v, t: now() };
+  const op = { d: cell, val: value, t: now() };
   if (!applyOp(room, op)) return false;
   pending.push(op);
   recent.push(op);
@@ -570,17 +576,17 @@ function queueDiag(k, val) {
   return true;
 }
 
-function queueCell(k, val) {
+function queueCell(cell, val) {
   ensureCells(room);
   if (trial) {
-    const v = String(val);
-    if (room.cells[k] === v) return false;
-    notePremise("cell", k, room.cells[k], v);
-    room.cells = room.cells.slice(0, k) + v + room.cells.slice(k + 1);
-    recordMark(trial, "cell", k, v);
+    const value = String(val);
+    if (room.cells[cell] === value) return false;
+    notePremise("cell", cell, room.cells[cell], value);
+    room.cells = room.cells.slice(0, cell) + value + room.cells.slice(cell + 1);
+    recordMark(trial, "cell", cell, value);
     return true;
   }
-  const op = { k, val: String(val), t: now() };
+  const op = { k: cell, val: String(val), t: now() };
   if (!applyOp(room, op)) return false;
   pending.push(op);
   recent.push(op);
@@ -595,7 +601,7 @@ async function poll() {
   if (res) {
     try {
       adopt(JSON.parse(res.value));
-    } catch (e) {}
+    } catch (edge) {}
   }
   if (Date.now() - lastWrite > HEARTBEAT_MS && !pending.length) {
     touchMe(room);
@@ -610,9 +616,9 @@ async function updateIndex() {
   if (res) {
     try {
       idx = JSON.parse(res.value) || {};
-    } catch (e) {}
+    } catch (edge) {}
   }
-  const live = room.players.filter(p => now() - p.seen < IDLE_MS).length;
+  const live = room.players.filter(player => now() - player.seen < IDLE_MS).length;
   idx[room.code] = {
     R: room.R,
     C: room.C,
@@ -622,6 +628,6 @@ async function updateIndex() {
     solved: !!room.solvedAt,
   };
   const cut = Date.now() - 1000 * 60 * 60 * 3;
-  for (const k of Object.keys(idx)) if (!idx[k] || idx[k].updated < cut) delete idx[k];
+  for (const cell of Object.keys(idx)) if (!idx[cell] || idx[cell].updated < cut) delete idx[cell];
   await store.set(INDEX_KEY, JSON.stringify(idx), true);
 }

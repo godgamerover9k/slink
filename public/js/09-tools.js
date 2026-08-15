@@ -10,12 +10,12 @@ document.getElementById("redo").onclick = doRedo;
 
 document.getElementById("check").onclick = () => {
   let over = 0;
-  for (let k = 0; k < engine.NC; k++) {
-    const s = cellSatisfied(k) === 2;
-    badEls[k].style.opacity = s ? 1 : 0;
-    if (s) over++;
+  for (let cell = 0; cell < engine.NC; cell++) {
+    const text = cellSatisfied(cell) === 2;
+    badEls[cell].style.opacity = text ? 1 : 0;
+    if (text) over++;
   }
-  setTimeout(() => badEls.forEach(b => (b.style.opacity = 0)), 2600);
+  setTimeout(() => badEls.forEach(btn => (btn.style.opacity = 0)), 2600);
   const sol = solutionFor();
   if (!sol) {
     toast("Couldn't check this puzzle");
@@ -42,18 +42,18 @@ document.getElementById("check").onclick = () => {
         seen[c] = 1;
         stack.push(c);
       }
-      const b = (engine.R - 1) * engine.C + c;
-      if (sol[engine.H(engine.R, c)] !== ON && !seen[b]) {
-        seen[b] = 1;
-        stack.push(b);
+      const btn = (engine.R - 1) * engine.C + c;
+      if (sol[engine.H(engine.R, c)] !== ON && !seen[btn]) {
+        seen[btn] = 1;
+        stack.push(btn);
       }
     }
     for (let r = 0; r < engine.R; r++) {
-      const l = r * engine.C,
+      const line = r * engine.C,
         rt = r * engine.C + engine.C - 1;
-      if (sol[engine.V(r, 0)] !== ON && !seen[l]) {
-        seen[l] = 1;
-        stack.push(l);
+      if (sol[engine.V(r, 0)] !== ON && !seen[line]) {
+        seen[line] = 1;
+        stack.push(line);
       }
       if (sol[engine.V(r, engine.C)] !== ON && !seen[rt]) {
         seen[rt] = 1;
@@ -61,22 +61,22 @@ document.getElementById("check").onclick = () => {
       }
     }
     while (stack.length) {
-      const k = stack.pop();
-      outside[k] = 1;
-      const r = (k / engine.C) | 0,
-        c = k % engine.C;
+      const cell = stack.pop();
+      outside[cell] = 1;
+      const r = (cell / engine.C) | 0,
+        c = cell % engine.C;
       const step = [
         [r - 1, c, engine.H(r, c)],
         [r + 1, c, engine.H(r + 1, c)],
         [r, c - 1, engine.V(r, c)],
         [r, c + 1, engine.V(r, c + 1)],
       ];
-      for (const [nr, nc, e] of step) {
+      for (const [nr, nc, edge] of step) {
         if (nr < 0 || nc < 0 || nr >= engine.R || nc >= engine.C) continue;
-        const n = nr * engine.C + nc;
-        if (seen[n] || sol[e] === ON) continue;
-        seen[n] = 1;
-        stack.push(n);
+        const node = nr * engine.C + nc;
+        if (seen[node] || sol[edge] === ON) continue;
+        seen[node] = 1;
+        stack.push(node);
       }
     }
   }
@@ -84,18 +84,18 @@ document.getElementById("check").onclick = () => {
   let blueOut = 0,
     blueIn = 0,
     wrongColour = 0;
-  for (let k = 0; k < engine.NC; k++) {
-    if (room.cells[k] === "1") outside[k] ? blueOut++ : blueIn++;
+  for (let cell = 0; cell < engine.NC; cell++) {
+    if (room.cells[cell] === "1") outside[cell] ? blueOut++ : blueIn++;
   }
   const blueMeansOutside = blueOut >= blueIn;
-  for (let k = 0; k < engine.NC; k++) {
-    const m = room.cells[k];
-    if (m === "0") continue;
-    const isOut = !!outside[k];
-    const ok = m === "1" ? isOut === blueMeansOutside : isOut !== blueMeansOutside;
+  for (let cell = 0; cell < engine.NC; cell++) {
+    const msg = room.cells[cell];
+    if (msg === "0") continue;
+    const isOut = !!outside[cell];
+    const ok = msg === "1" ? isOut === blueMeansOutside : isOut !== blueMeansOutside;
     if (!ok) {
       wrongColour++;
-      badEls[k].style.opacity = 1;
+      badEls[cell].style.opacity = 1;
     }
   }
 
@@ -117,13 +117,13 @@ document.getElementById("zoomOut").onclick = () =>
 document.getElementById("zoomReset").onclick = resetView;
 
 function download(name, text, type) {
-  const a = document.createElement("a");
+  const anchor = document.createElement("a");
   const url = URL.createObjectURL(new Blob([text], { type: type || "application/json" }));
-  a.href = url;
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
+  anchor.href = url;
+  anchor.download = name;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
@@ -131,8 +131,8 @@ function download(name, text, type) {
 /* While a branch is open the sheet itself lives in trunk.saved, so export
    that rather than whatever the branch happens to be showing. */
 function sheetProgress() {
-  const b = trial ? trunk.saved || boardSnapshot() : boardSnapshot();
-  return { edges: b.edges, cells: b.cells, diag: b.diag };
+  const btn = trial ? trunk.saved || boardSnapshot() : boardSnapshot();
+  return { edges: btn.edges, cells: btn.cells, diag: btn.diag };
 }
 function exportTree() {
   ensureTree(room);
@@ -162,7 +162,7 @@ document.getElementById("exportBtn").onclick = async () => {
         given: room.given,
         minimal: !!room.minimal,
         clues: Array.from(room.clues),
-        // the sheet as it stands, plus every branch hanging off it
+        // the master as it stands, plus every branch hanging off it
         progress: {
           ...sheetProgress(),
           solvedAt: room.solvedAt || 0,
@@ -184,12 +184,12 @@ document.getElementById("exportBtn").onclick = async () => {
     );
     if (update) {
       try {
-        const w = await loadedFrom.handle.createWritable();
-        await w.write(text);
-        await w.close();
+        const writer = await loadedFrom.handle.createWritable();
+        await writer.write(text);
+        await writer.close();
         toast("Updated " + loadedFrom.name);
         return;
-      } catch (e) {
+      } catch (edge) {
         toast("Couldn't write to that file — saving a copy instead");
       }
     }
@@ -211,24 +211,24 @@ document.getElementById("exportBtn").onclick = async () => {
 
 document.getElementById("clearlines").onclick = () => {
   ensureCells(room);
-  let n = 0,
-    d = 0;
+  let node = 0,
+    dl = 0;
   for (let i = 0; i < engine.E; i++)
     if (room.edges[i] === "1") {
       queueOp(i, "0");
-      n++;
+      node++;
     }
   // diagonals are drawn lines too, so clearing lines takes them with it
-  for (let k = 0; k < engine.NC; k++)
-    if (room.diag[k] !== "0") {
-      queueDiag(k, "0");
-      d++;
+  for (let cell = 0; cell < engine.NC; cell++)
+    if (room.diag[cell] !== "0") {
+      queueDiag(cell, "0");
+      dl++;
     }
   render();
   toast(
-    n || d
-      ? `Cleared ${n} line${n === 1 ? "" : "s"}` +
-          (d ? ` and ${d} diagonal${d === 1 ? "" : "s"}` : "")
+    node || dl
+      ? `Cleared ${node} line${node === 1 ? "" : "s"}` +
+          (dl ? ` and ${dl} diagonal${dl === 1 ? "" : "s"}` : "")
       : "Nothing drawn to clear",
   );
 };
@@ -241,26 +241,26 @@ document.getElementById("clearx").onclick = () => {
 
 document.getElementById("clearfill").onclick = () => {
   ensureCells(room);
-  let n = 0;
-  for (let k = 0; k < engine.NC; k++)
-    if (room.cells[k] !== "0") {
-      queueCell(k, "0");
-      n++;
+  let node = 0;
+  for (let cell = 0; cell < engine.NC; cell++)
+    if (room.cells[cell] !== "0") {
+      queueCell(cell, "0");
+      node++;
     }
   render();
-  toast(n ? "Colors cleared" : "No colored squares to clear");
+  toast(node ? "Colors cleared" : "No colored squares to clear");
 };
 
-document.getElementById("optDim").onchange = e => {
-  dimClues = e.target.checked;
+document.getElementById("optDim").onchange = edge => {
+  dimClues = edge.target.checked;
   render();
 };
-document.getElementById("optPremise").onchange = e => {
-  showPremises = e.target.checked;
+document.getElementById("optPremise").onchange = edge => {
+  showPremises = edge.target.checked;
   render();
 };
-document.getElementById("optWeight").onchange = e => {
-  weighted = e.target.checked;
+document.getElementById("optWeight").onchange = edge => {
+  weighted = edge.target.checked;
   document.body.classList.toggle("weighted", weighted);
   render();
 };
@@ -272,7 +272,7 @@ document.getElementById("newsheet").onclick = () => {
   }
   /* Only worth asking when the answer matters to somebody else. Alone in a
      puzzle, the confirmation is a question with one sensible answer. */
-  const others = (room.players || []).filter(p => p.id !== me.id && now() - p.seen < IDLE_MS);
+  const others = (room.players || []).filter(player => player.id !== me.id && now() - player.seen < IDLE_MS);
   if (
     others.length &&
     !confirm("Load a new puzzle for everyone in this room? The current one is cleared.")
@@ -281,8 +281,8 @@ document.getElementById("newsheet").onclick = () => {
   clearBranches();
   openSetup(true);
 };
-document.getElementById("roomcode").onclick = e => {
-  e.preventDefault();
+document.getElementById("roomcode").onclick = edge => {
+  edge.preventDefault();
   document.getElementById("copycode").click();
 };
 
@@ -291,16 +291,16 @@ document.getElementById("copycode").onclick = async () => {
   try {
     await navigator.clipboard.writeText(link);
     toast("Link copied — send it to whoever is joining");
-  } catch (e) {
+  } catch (edge) {
     toast(link);
   }
 };
 document.getElementById("leaveroom").onclick = () => {
   try {
-    const u = new URL(location.href);
-    u.searchParams.delete("room");
-    history.replaceState(null, "", u.toString());
-  } catch (e) {}
+    const url = new URL(location.href);
+    url.searchParams.delete("room");
+    history.replaceState(null, "", url.toString());
+  } catch (edge) {}
   clearBranches();
   clearInterval(pollTimer);
   clearInterval(indexTimer);
@@ -341,16 +341,16 @@ function toast(msg) {
     wrap.id = "penPick";
     wrap.className = "penpick";
     PENS.forEach((_, i) => {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "penpick__dot";
-      b.style.background = `var(${PENS[i]})`;
-      b.title = "use this colour";
-      b.onclick = () => {
+      const btn2 = document.createElement("button");
+      btn2.type = "button";
+      btn2.className = "penpick__dot";
+      btn2.style.background = `var(${PENS[i]})`;
+      btn2.title = "use this colour";
+      btn2.onclick = () => {
         setMyPen(i);
         wrap.remove();
       };
-      wrap.appendChild(b);
+      wrap.appendChild(btn2);
     });
     btn.after(wrap);
   }

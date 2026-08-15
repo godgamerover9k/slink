@@ -4,15 +4,15 @@ const {spawn}=require('child_process');
 const {JSDOM}=require('jsdom');
 const PORT=8341, KEY='linkkey';
 const base=`http://127.0.0.1:${PORT}/`;
-const srv=spawn('node',['slink-server.js','--port',String(PORT),'--key',KEY,
-  '--page','slitherlink-plotroom.html','--data','/tmp/link.json','--noopen']);
+const srv=spawn('node',['server/slink-server.js','--port',String(PORT),'--key',KEY,
+  '--page','public/index.html','--data','/tmp/link.json','--noopen']);
 let out='';srv.stdout.on('data',d=>out+=d);srv.stderr.on('data',d=>out+=d);
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 let pass=0,fail=0;
 const ck=(n,a,b)=>{const ok=JSON.stringify(a)===JSON.stringify(b);ok?pass++:fail++;
  console.log(`${ok?'PASS':'FAIL'}  ${n}${ok?'':`  (got ${JSON.stringify(a)}, want ${JSON.stringify(b)})`}`);};
 async function player(url){
-  const html=await (await fetch(base)).text();
+  const html = require('./pageload.js').loadPage(__dirname);
   const store=new Map();
   const dom=new JSDOM(html,{url,runScripts:'dangerously',pretendToBeVisual:true,beforeParse(w){
     w.fetch=(u,o)=>fetch(new URL(u,base),o);

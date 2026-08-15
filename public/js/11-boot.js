@@ -48,8 +48,13 @@ window.addEventListener("resize", placeBranchPanel);
     document.getElementById("codeIn").value = linkRoom;
     if (await joinRoom(linkRoom)) {
       if (!named) {
-        const asked = prompt("You are in. What should the others call you?", me.name || "");
-        if (asked !== null && asked.trim()) setMyName(asked);
+        /* Asking must never cost someone the puzzle they just opened: some
+           browsers refuse prompt outright, and an exception here would abort
+           the join that has already succeeded. */
+        try {
+          const asked = prompt("You are in. What should the others call you?", me.name || "");
+          if (asked !== null && asked.trim()) setMyName(asked);
+        } catch (e) {}
       }
       return;
     }

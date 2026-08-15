@@ -10,8 +10,8 @@
    with variables numbered from 0.
    ============================================================ */
 function SatSolver(nVars) {
-  const NEG = l => l ^ 1,
-    VAR = l => l >> 1;
+  const NEG = lit => lit ^ 1,
+    VAR = lit => lit >> 1;
   let clauses = []; // each: array of literals
   const watches = []; // per literal: clause indices
   for (let i = 0; i < nVars * 2; i++) watches.push([]);
@@ -28,48 +28,48 @@ function SatSolver(nVars) {
     conflicts = 0,
     ok = true;
 
-  const litValue = l => {
-    const v = value[VAR(l)];
-    if (v === 0) return 0;
-    return l & 1 ? -v : v;
+  const litValue = lit => {
+    const variable = value[VAR(lit)];
+    if (variable === 0) return 0;
+    return lit & 1 ? -variable : variable;
   };
 
-  function enqueue(l, from) {
-    const v = VAR(l);
-    value[v] = l & 1 ? -1 : 1;
-    level[v] = trailLim.length;
-    reason[v] = from === undefined ? -1 : from;
-    trail[tsize++] = l;
+  function enqueue(lit, from) {
+    const variable = VAR(lit);
+    value[variable] = lit & 1 ? -1 : 1;
+    level[variable] = trailLim.length;
+    reason[variable] = from === undefined ? -1 : from;
+    trail[tsize++] = lit;
   }
 
   function addClause(lits) {
     if (!ok) return false;
     const seen = new Set();
     let out = [];
-    for (const l of lits) {
-      if (seen.has(NEG(l))) return true; // tautology
-      if (seen.has(l)) continue;
-      seen.add(l);
-      out.push(l);
+    for (const lit of lits) {
+      if (seen.has(NEG(lit))) return true; // tautology
+      if (seen.has(lit)) continue;
+      seen.add(lit);
+      out.push(lit);
     }
     /* Clauses are only ever added at level 0. Watching a literal that is
        already false there breaks the watch invariant and the clause never
        fires again - which silently let the same solution be counted twice. */
     if (trailLim.length === 0) {
-      for (const l of out) if (litValue(l) > 0) return true; // already satisfied
-      out = out.filter(l => litValue(l) === 0);
+      for (const lit of out) if (litValue(lit) > 0) return true; // already satisfied
+      out = out.filter(lit => litValue(lit) === 0);
     }
     if (!out.length) {
       ok = false;
       return false;
     }
     if (out.length === 1) {
-      const v = litValue(out[0]);
-      if (v < 0) {
+      const variable = litValue(out[0]);
+      if (variable < 0) {
         ok = false;
         return false;
       }
-      if (v === 0) enqueue(out[0]);
+      if (variable === 0) enqueue(out[0]);
       return true;
     }
     const ci = clauses.length;
@@ -82,40 +82,40 @@ function SatSolver(nVars) {
   /* two-watched-literal propagation */
   function propagate() {
     while (qhead < tsize) {
-      const l = trail[qhead++];
-      const ws = watches[l];
+      const lit = trail[qhead++];
+      const ws = watches[lit];
       let keep = 0;
       for (let wi = 0; wi < ws.length; wi++) {
         const ci = ws[wi];
-        const c = clauses[ci];
-        const other = NEG(l);
-        if (c[0] === other) {
-          c[0] = c[1];
-          c[1] = other;
+        const clause = clauses[ci];
+        const other = NEG(lit);
+        if (clause[0] === other) {
+          clause[0] = clause[1];
+          clause[1] = other;
         }
-        if (litValue(c[0]) > 0) {
+        if (litValue(clause[0]) > 0) {
           ws[keep++] = ci;
           continue;
         }
         let moved = false;
-        for (let k = 2; k < c.length; k++) {
-          if (litValue(c[k]) >= 0) {
-            c[1] = c[k];
-            c[k] = other;
-            watches[NEG(c[1])].push(ci);
+        for (let k = 2; k < clause.length; k++) {
+          if (litValue(clause[k]) >= 0) {
+            clause[1] = clause[k];
+            clause[k] = other;
+            watches[NEG(clause[1])].push(ci);
             moved = true;
             break;
           }
         }
         if (moved) continue;
         ws[keep++] = ci;
-        if (litValue(c[0]) < 0) {
+        if (litValue(clause[0]) < 0) {
           // conflict
           for (let k = wi + 1; k < ws.length; k++) ws[keep++] = ws[k];
           ws.length = keep;
           return ci;
         }
-        enqueue(c[0], ci);
+        enqueue(clause[0], ci);
       }
       ws.length = keep;
     }
@@ -127,28 +127,28 @@ function SatSolver(nVars) {
   function analyze(confl) {
     const learnt = [0]; // slot 0 filled at the end
     let counter = 0,
-      p = -1,
+      pos = -1,
       idx = tsize - 1;
     const touched = [];
     do {
-      const c = clauses[confl];
-      for (let j = p === -1 ? 0 : 1; j < c.length; j++) {
-        const q = c[j],
-          v = VAR(q);
-        if (seenV[v] || level[v] === 0) continue;
-        seenV[v] = 1;
-        touched.push(v);
-        activity[v] += bump;
-        if (level[v] >= trailLim.length) counter++;
+      const clause = clauses[confl];
+      for (let j = pos === -1 ? 0 : 1; j < clause.length; j++) {
+        const q = clause[j],
+          variable = VAR(q);
+        if (seenV[variable] || level[variable] === 0) continue;
+        seenV[variable] = 1;
+        touched.push(variable);
+        activity[variable] += bump;
+        if (level[variable] >= trailLim.length) counter++;
         else learnt.push(q);
       }
       while (!seenV[VAR(trail[idx])]) idx--;
-      p = trail[idx--];
-      seenV[VAR(p)] = 0;
-      confl = reason[VAR(p)];
+      pos = trail[idx--];
+      seenV[VAR(pos)] = 0;
+      confl = reason[VAR(pos)];
       counter--;
     } while (counter > 0);
-    learnt[0] = NEG(p);
+    learnt[0] = NEG(pos);
     let back = 0;
     if (learnt.length > 1) {
       let best = 1;
@@ -159,7 +159,7 @@ function SatSolver(nVars) {
       learnt[best] = t;
       back = level[VAR(learnt[1])];
     }
-    for (const v of touched) seenV[v] = 0;
+    for (const variable of touched) seenV[variable] = 0;
     return { learnt, back };
   }
 
@@ -167,10 +167,10 @@ function SatSolver(nVars) {
     if (trailLim.length <= lvl) return;
     const lim = trailLim[lvl];
     for (let i = tsize - 1; i >= lim; i--) {
-      const v = VAR(trail[i]);
-      phase[v] = value[v] > 0 ? 1 : -1;
-      value[v] = 0;
-      reason[v] = -1;
+      const variable = VAR(trail[i]);
+      phase[variable] = value[variable] > 0 ? 1 : -1;
+      value[variable] = 0;
+      reason[variable] = -1;
     }
     tsize = lim;
     qhead = lim;
@@ -180,11 +180,11 @@ function SatSolver(nVars) {
   function pickBranch() {
     let best = -1,
       bestA = -1;
-    for (let v = 0; v < nVars; v++) {
-      if (value[v] !== 0) continue;
-      if (activity[v] > bestA) {
-        bestA = activity[v];
-        best = v;
+    for (let variable = 0; variable < nVars; variable++) {
+      if (value[variable] !== 0) continue;
+      if (activity[variable] > bestA) {
+        bestA = activity[variable];
+        best = variable;
       }
     }
     if (best < 0) return -1;
@@ -217,7 +217,7 @@ function SatSolver(nVars) {
         }
         bump *= 1.05;
         if (bump > 1e100) {
-          for (let v = 0; v < nVars; v++) activity[v] *= 1e-100;
+          for (let variable = 0; variable < nVars; variable++) activity[variable] *= 1e-100;
           bump *= 1e-100;
         }
         if (budget && used >= budget) return "budget";
@@ -226,10 +226,10 @@ function SatSolver(nVars) {
           cancelUntil(0);
         }
       } else {
-        const l = pickBranch();
-        if (l < 0) return "sat";
+        const lit = pickBranch();
+        if (lit < 0) return "sat";
         trailLim.push(tsize);
-        enqueue(l);
+        enqueue(lit);
       }
     }
   }
@@ -241,9 +241,9 @@ function SatSolver(nVars) {
       cancelUntil(0);
     },
     model() {
-      const m = new Uint8Array(nVars);
-      for (let v = 0; v < nVars; v++) m[v] = value[v] > 0 ? 1 : 0;
-      return m;
+      const model = new Uint8Array(nVars);
+      for (let variable = 0; variable < nVars; variable++) model[variable] = value[variable] > 0 ? 1 : 0;
+      return model;
     },
     get ok() {
       return ok;
@@ -260,8 +260,8 @@ function SatSolver(nVars) {
    handled by refutation in satCount below. */
 function satClauses(engine, clues) {
   const out = [];
-  const P = e => e * 2,
-    N = e => e * 2 + 1;
+  const P = edge => edge * 2,
+    N = edge => edge * 2 + 1;
   for (let k = 0; k < engine.NC; k++) {
     const want = clues[k];
     if (want < 0) continue;
@@ -272,29 +272,29 @@ function satClauses(engine, clues) {
       engine.cEdge[k * 4 + 3],
     ];
     if (want === 0) {
-      for (const e of es) out.push([N(e)]);
+      for (const edge of es) out.push([N(edge)]);
       continue;
     }
     if (want === 4) {
-      for (const e of es) out.push([P(e)]);
+      for (const edge of es) out.push([P(edge)]);
       continue;
     }
     // at most `want`: no want+1 of them true
-    combos(es, want + 1, c => out.push(c.map(N)));
+    combos(es, want + 1, clause => out.push(clause.map(N)));
     // at least `want`: no 4-want+1 of them false
-    combos(es, 4 - want + 1, c => out.push(c.map(P)));
+    combos(es, 4 - want + 1, clause => out.push(clause.map(P)));
   }
-  for (let v = 0; v < engine.VC; v++) {
-    const n = engine.vDeg[v];
+  for (let variable = 0; variable < engine.VC; variable++) {
+    const n = engine.vDeg[variable];
     const es = [];
-    for (let j = 0; j < n; j++) es.push(engine.vEdge[v * 4 + j]);
+    for (let j = 0; j < n; j++) es.push(engine.vEdge[variable * 4 + j]);
     // never degree 1: if one is drawn another must be
-    for (const e of es) out.push([N(e)].concat(es.filter(o => o !== e).map(P)));
+    for (const edge of es) out.push([N(edge)].concat(es.filter(o => o !== edge).map(P)));
     // at most two
-    combos(es, 3, c => out.push(c.map(N)));
+    combos(es, 3, clause => out.push(clause.map(N)));
   }
   const any = [];
-  for (let e = 0; e < engine.E; e++) any.push(P(e));
+  for (let edge = 0; edge < engine.E; edge++) any.push(P(edge));
   out.push(any); // the empty board is not a solution
   return out;
 }
@@ -318,14 +318,14 @@ function combos(arr, k, fn) {
    refuted rather than accepted. */
 function edgeLoops(engine, on) {
   const adj = new Map();
-  for (const e of on) {
-    for (const v of [engine.ea[e], engine.eb[e]]) {
-      let a = adj.get(v);
+  for (const edge of on) {
+    for (const variable of [engine.ea[edge], engine.eb[edge]]) {
+      let a = adj.get(variable);
       if (!a) {
         a = [];
-        adj.set(v, a);
+        adj.set(variable, a);
       }
-      a.push(e);
+      a.push(edge);
     }
   }
   const seen = new Set(),
@@ -336,10 +336,10 @@ function edgeLoops(engine, on) {
       comp = [];
     seen.add(s);
     while (stack.length) {
-      const e = stack.pop();
-      comp.push(e);
-      for (const v of [engine.ea[e], engine.eb[e]])
-        for (const f of adj.get(v) || [])
+      const edge = stack.pop();
+      comp.push(edge);
+      for (const variable of [engine.ea[edge], engine.eb[edge]])
+        for (const f of adj.get(variable) || [])
           if (!seen.has(f)) {
             seen.add(f);
             stack.push(f);
@@ -362,8 +362,8 @@ function countSolutions(CELL, engine, clues, limit, fastBudget, satBudget) {
 
 function satCount(engine, clues, limit, budget) {
   const CELL = SatSolver(engine.E);
-  for (const c of satClauses(engine, clues))
-    if (!CELL.addClause(c)) return { count: 0, solution: null, aborted: false, nodes: 0 };
+  for (const clause of satClauses(engine, clues))
+    if (!CELL.addClause(clause)) return { count: 0, solution: null, aborted: false, nodes: 0 };
   limit = limit || 2;
   let count = 0,
     solution = null,
@@ -384,26 +384,26 @@ function satCount(engine, clues, limit, budget) {
     spent = CELL.conflicts;
     if (r === "budget") return { count, solution, aborted: true, nodes: CELL.conflicts };
     if (r === "unsat") break;
-    const m = CELL.model();
+    const model = CELL.model();
     CELL.reset(); // back to level 0 before adding clauses: a unit clause
     // added deeper would be undone by the next backtrack and
     // the same solution could then be found twice
     const on = [];
-    for (let e = 0; e < engine.E; e++) if (m[e]) on.push(e);
+    for (let edge = 0; edge < engine.E; edge++) if (model[edge]) on.push(edge);
     const comps = edgeLoops(engine, on);
     if (comps.length > 1) {
       // several separate loops: forbid the smallest and look again
       let small = comps[0];
-      for (const c of comps) if (c.length < small.length) small = c;
-      CELL.addClause(small.map(e => e * 2 + 1));
+      for (const clause of comps) if (clause.length < small.length) small = clause;
+      CELL.addClause(small.map(edge => edge * 2 + 1));
       continue;
     }
     count++;
     if (!solution) {
       solution = new Uint8Array(engine.E);
-      for (let e = 0; e < engine.E; e++) solution[e] = m[e] ? ON : OFF;
+      for (let edge = 0; edge < engine.E; edge++) solution[edge] = model[edge] ? ON : OFF;
     }
-    CELL.addClause([...Array(engine.E).keys()].map(e => (m[e] ? e * 2 + 1 : e * 2)));
+    CELL.addClause([...Array(engine.E).keys()].map(edge => (model[edge] ? edge * 2 + 1 : edge * 2)));
   }
   return { count, solution, aborted: false, nodes: CELL.conflicts };
 }

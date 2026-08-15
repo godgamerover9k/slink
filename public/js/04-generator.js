@@ -1,51 +1,51 @@
 /* ============================================================
    3. Generator — a random simply connected blob makes the loop
    ============================================================ */
-function shuffle(a) {
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = (Math.random() * (i + 1)) | 0;
-    [a[i], a[j]] = [a[j], a[i]];
+function shuffle(arr) {
+  for (let idx = arr.length - 1; idx > 0; idx--) {
+    const j = (Math.random() * (idx + 1)) | 0;
+    [arr[idx], arr[j]] = [arr[j], arr[idx]];
   }
-  return a;
+  return arr;
 }
 
 function regionValid(R, C, inside) {
   const N = R * C;
   let start = -1,
     size = 0;
-  for (let i = 0; i < N; i++)
-    if (inside[i]) {
-      if (start < 0) start = i;
+  for (let idx = 0; idx < N; idx++)
+    if (inside[idx]) {
+      if (start < 0) start = idx;
       size++;
     }
   if (!size || size === N) return false;
   const seen = new Uint8Array(N);
-  let st = [start];
+  let edges = [start];
   seen[start] = 1;
   let cnt = 1;
-  while (st.length) {
-    const k = st.pop(),
-      r = (k / C) | 0,
-      c = k % C;
-    if (r > 0 && inside[k - C] && !seen[k - C]) {
-      seen[k - C] = 1;
+  while (edges.length) {
+    const cell = edges.pop(),
+      r = (cell / C) | 0,
+      c = cell % C;
+    if (r > 0 && inside[cell - C] && !seen[cell - C]) {
+      seen[cell - C] = 1;
       cnt++;
-      st.push(k - C);
+      edges.push(cell - C);
     }
-    if (r < R - 1 && inside[k + C] && !seen[k + C]) {
-      seen[k + C] = 1;
+    if (r < R - 1 && inside[cell + C] && !seen[cell + C]) {
+      seen[cell + C] = 1;
       cnt++;
-      st.push(k + C);
+      edges.push(cell + C);
     }
-    if (c > 0 && inside[k - 1] && !seen[k - 1]) {
-      seen[k - 1] = 1;
+    if (c > 0 && inside[cell - 1] && !seen[cell - 1]) {
+      seen[cell - 1] = 1;
       cnt++;
-      st.push(k - 1);
+      edges.push(cell - 1);
     }
-    if (c < C - 1 && inside[k + 1] && !seen[k + 1]) {
-      seen[k + 1] = 1;
+    if (c < C - 1 && inside[cell + 1] && !seen[cell + 1]) {
+      seen[cell + 1] = 1;
       cnt++;
-      st.push(k + 1);
+      edges.push(cell + 1);
     }
   }
   if (cnt !== size) return false;
@@ -56,43 +56,43 @@ function regionValid(R, C, inside) {
   let total = 0;
   for (let r = 0; r < PR; r++)
     for (let c = 0; c < PC; c++) {
-      const p = r * PC + c;
-      const o =
+      const perim = r * PC + c;
+      const isOutside =
         r === 0 || c === 0 || r === PR - 1 || c === PC - 1
           ? 1
           : inside[(r - 1) * C + (c - 1)]
             ? 0
             : 1;
-      out[p] = o;
-      if (o) total++;
+      out[perim] = isOutside;
+      if (isOutside) total++;
     }
   const s2 = new Uint8Array(PN);
-  st = [0];
+  edges = [0];
   s2[0] = 1;
   let c2 = 1;
-  while (st.length) {
-    const p = st.pop(),
-      r = (p / PC) | 0,
-      c = p % PC;
-    if (r > 0 && out[p - PC] && !s2[p - PC]) {
-      s2[p - PC] = 1;
+  while (edges.length) {
+    const perim = edges.pop(),
+      r = (perim / PC) | 0,
+      c = perim % PC;
+    if (r > 0 && out[perim - PC] && !s2[perim - PC]) {
+      s2[perim - PC] = 1;
       c2++;
-      st.push(p - PC);
+      edges.push(perim - PC);
     }
-    if (r < PR - 1 && out[p + PC] && !s2[p + PC]) {
-      s2[p + PC] = 1;
+    if (r < PR - 1 && out[perim + PC] && !s2[perim + PC]) {
+      s2[perim + PC] = 1;
       c2++;
-      st.push(p + PC);
+      edges.push(perim + PC);
     }
-    if (c > 0 && out[p - 1] && !s2[p - 1]) {
-      s2[p - 1] = 1;
+    if (c > 0 && out[perim - 1] && !s2[perim - 1]) {
+      s2[perim - 1] = 1;
       c2++;
-      st.push(p - 1);
+      edges.push(perim - 1);
     }
-    if (c < PC - 1 && out[p + 1] && !s2[p + 1]) {
-      s2[p + 1] = 1;
+    if (c < PC - 1 && out[perim + 1] && !s2[perim + 1]) {
+      s2[perim + 1] = 1;
       c2++;
-      st.push(p + 1);
+      edges.push(perim + 1);
     }
   }
   if (c2 !== total) return false;
@@ -109,17 +109,17 @@ function regionValid(R, C, inside) {
   return true;
 }
 function perimeter(R, C, inside) {
-  let p = 0;
+  let perim = 0;
   const at = (r, c) => (r < 0 || c < 0 || r >= R || c >= C ? 0 : inside[r * C + c]);
   for (let r = 0; r < R; r++)
     for (let c = 0; c < C; c++) {
       if (!inside[r * C + c]) continue;
-      if (!at(r - 1, c)) p++;
-      if (!at(r + 1, c)) p++;
-      if (!at(r, c - 1)) p++;
-      if (!at(r, c + 1)) p++;
+      if (!at(r - 1, c)) perim++;
+      if (!at(r + 1, c)) perim++;
+      if (!at(r, c - 1)) perim++;
+      if (!at(r, c + 1)) perim++;
     }
-  return p;
+  return perim;
 }
 function growLoop(R, C) {
   const N = R * C,
@@ -130,52 +130,52 @@ function growLoop(R, C) {
     guard = 0;
   const growGuard = Math.min(N * 200, 200000);
   while (size < target && guard++ < growGuard) {
-    const k = (Math.random() * N) | 0;
-    if (inside[k]) continue;
-    const r = (k / C) | 0,
-      c = k % C;
+    const cell = (Math.random() * N) | 0;
+    if (inside[cell]) continue;
+    const r = (cell / C) | 0,
+      c = cell % C;
     let t = false;
-    if (r > 0 && inside[k - C]) t = true;
-    if (r < R - 1 && inside[k + C]) t = true;
-    if (c > 0 && inside[k - 1]) t = true;
-    if (c < C - 1 && inside[k + 1]) t = true;
+    if (r > 0 && inside[cell - C]) t = true;
+    if (r < R - 1 && inside[cell + C]) t = true;
+    if (c > 0 && inside[cell - 1]) t = true;
+    if (c < C - 1 && inside[cell + 1]) t = true;
     if (!t) continue;
-    inside[k] = 1;
+    inside[cell] = 1;
     if (regionValid(R, C, inside)) size++;
-    else inside[k] = 0;
+    else inside[cell] = 0;
   }
   let per = perimeter(R, C, inside);
-  // regionValid is O(N), so the tempering pass is capped to stay usable on big sheets
-  for (let t = 0, n = Math.min(N * 50, 60000); t < n; t++) {
-    const k = (Math.random() * N) | 0,
-      was = inside[k];
-    inside[k] = was ? 0 : 1;
+  // regionValid is O(N), so the tempering pass is capped to stay usable on a big puzzles
+  for (let t = 0, count = Math.min(N * 50, 60000); t < count; t++) {
+    const cell = (Math.random() * N) | 0,
+      was = inside[cell];
+    inside[cell] = was ? 0 : 1;
     if (!regionValid(R, C, inside)) {
-      inside[k] = was;
+      inside[cell] = was;
       continue;
     }
     const np = perimeter(R, C, inside);
     if (np > per || Math.random() < 0.12) per = np;
-    else inside[k] = was;
+    else inside[cell] = was;
   }
   return inside;
 }
 function loopEdges(engine, inside) {
   const { R, C } = engine,
     at = (r, c) => (r < 0 || c < 0 || r >= R || c >= C ? 0 : inside[r * C + c]);
-  const st = new Uint8Array(engine.E);
+  const edges = new Uint8Array(engine.E);
   for (let r = 0; r <= R; r++)
-    for (let c = 0; c < C; c++) st[engine.H(r, c)] = at(r - 1, c) !== at(r, c) ? ON : OFF;
+    for (let c = 0; c < C; c++) edges[engine.H(r, c)] = at(r - 1, c) !== at(r, c) ? ON : OFF;
   for (let r = 0; r < R; r++)
-    for (let c = 0; c <= C; c++) st[engine.V(r, c)] = at(r, c - 1) !== at(r, c) ? ON : OFF;
-  return st;
+    for (let c = 0; c <= C; c++) edges[engine.V(r, c)] = at(r, c - 1) !== at(r, c) ? ON : OFF;
+  return edges;
 }
-function cluesFromLoop(engine, st) {
+function cluesFromLoop(engine, edges) {
   const out = new Int8Array(engine.NC);
-  for (let k = 0; k < engine.NC; k++) {
-    let n = 0;
-    for (let j = 0; j < 4; j++) if (st[engine.cEdge[k * 4 + j]] === ON) n++;
-    out[k] = n;
+  for (let cell = 0; cell < engine.NC; cell++) {
+    let count = 0;
+    for (let j = 0; j < 4; j++) if (edges[engine.cEdge[cell * 4 + j]] === ON) count++;
+    out[cell] = count;
   }
   return out;
 }
@@ -194,17 +194,17 @@ function generateAsync(R, C, diffKey, onProgress) {
   return new Promise((resolve, reject) => {
     const engine = Engine(R, C),
       CELL = Solver(engine),
-      d = DIFFS[diffKey] || DIFFS.standard;
-    // The old formula divided by cell count, so bigger sheets got a smaller
+      level = DIFFS[diffKey] || DIFFS.standard;
+    // The old formula divided by cell count, so bigger puzzles got a smaller
     // budget and every removal check timed out — leaving every clue in place.
     // Take whichever is larger so small grids stay generous and big ones work.
-    const fastBudget = Math.max(1000, d.base, Math.round((d.base * 100) / engine.NC)); // search nodes
-    const budget = Math.max(2000, Math.round(d.base / 8)); // SAT conflicts
+    const fastBudget = Math.max(1000, level.base, Math.round((level.base * 100) / engine.NC)); // search nodes
+    const budget = Math.max(2000, Math.round(level.base / 8)); // SAT conflicts
     // Proving a full clue set unique is the expensive half of the job, so cap
     // it per attempt and retry rather than blocking the page on one candidate.
     /* Measured: 16x16 needs ~85k nodes to prove a full clue set unique, 18x18
        about 620k. The old 150k ceiling rejected nearly every candidate loop
-       past 16, so large sheets retried forever. */
+       past 16, so large puzzles retried forever. */
     const seedBudget = Math.max(20000, engine.NC * 40);
     const fastSeed = Math.max(60000, engine.NC * 400);
     const shapeMs = engine.NC > 900 ? 26 : 1e9;
@@ -214,7 +214,7 @@ function generateAsync(R, C, diffKey, onProgress) {
       attempt = 0,
       clues = null,
       order = null,
-      i = 0,
+      idx = 0,
       stopAt = 0;
     let pass = 1,
       removed = 0,
@@ -224,20 +224,20 @@ function generateAsync(R, C, diffKey, onProgress) {
       removedAll = 0;
 
     const remaining = () => {
-      const a = [];
-      for (let k = 0; k < engine.NC; k++) if (clues[k] >= 0) a.push(k);
-      return a;
+      const arr = [];
+      for (let cell = 0; cell < engine.NC; cell++) if (clues[cell] >= 0) arr.push(cell);
+      return arr;
     };
     function done() {
       let given = 0;
-      for (let k = 0; k < engine.NC; k++) if (clues[k] >= 0) given++;
+      for (let cell = 0; cell < engine.NC; cell++) if (clues[cell] >= 0) given++;
       resolve({
         R,
         C,
         clues: Array.from(clues),
         given,
-        minimal: !!d.minimal,
-        inconclusive: d.minimal ? stuck.length : 0,
+        minimal: !!level.minimal,
+        inconclusive: level.minimal ? stuck.length : 0,
         passes: pass,
       });
     }
@@ -263,22 +263,22 @@ function generateAsync(R, C, diffKey, onProgress) {
             kept = 0;
             for (let q = 0; q < engine.NC; q++) if (clues[q] >= 0) kept++;
             order = shuffle([...Array(engine.NC).keys()]);
-            stopAt = Math.round(engine.NC * d.frac);
-            i = 0;
+            stopAt = Math.round(engine.NC * level.frac);
+            idx = 0;
             phase = 1;
           }
         } else {
-          if (i >= stopAt) {
+          if (idx >= stopAt) {
             /* One complete pass already leaves a minimal set. Dropping a clue
                can only ever add solutions, so a clue that was conclusively
                kept stays unremovable however much is taken away afterwards.
                The only unfinished business is checks that ran out of budget,
                so re-test exactly those, with more room each time. */
-            if (d.minimal && stuck.length && curBudget < MAXB) {
+            if (level.minimal && stuck.length && curBudget < MAXB) {
               curBudget = Math.min(MAXB, curBudget * 6);
               order = stuck;
               stopAt = order.length;
-              i = 0;
+              idx = 0;
               stuck = [];
               pass++;
               continue;
@@ -286,13 +286,13 @@ function generateAsync(R, C, diffKey, onProgress) {
             done();
             return;
           }
-          const k = order[i++],
-            keep = clues[k];
-          clues[k] = -1;
+          const cell = order[idx++],
+            keep = clues[cell];
+          clues[cell] = -1;
           const res = countSolutions(CELL, engine, clues, 2, fastBudget, curBudget);
           if (res.count !== 1 || res.aborted) {
-            clues[k] = keep;
-            if (res.aborted) stuck.push(k); // unresolved, worth another look
+            clues[cell] = keep;
+            if (res.aborted) stuck.push(cell); // unresolved, worth another look
           } else {
             removed++;
             removedAll++;
@@ -301,14 +301,14 @@ function generateAsync(R, C, diffKey, onProgress) {
           if (onProgress)
             onProgress({
               stage: "trim",
-              frac: i / stopAt,
+              frac: idx / stopAt,
               pass,
-              checked: i,
+              checked: idx,
               total: stopAt,
               kept,
               removed: removedAll,
               hard: curBudget > budget,
-              minimal: !!d.minimal,
+              minimal: !!level.minimal,
             });
         }
       }

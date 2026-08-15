@@ -1,22 +1,12 @@
 /* Starts the real room server, then loads the page twice over HTTP —
    no window.storage anywhere, exactly like two people on two computers. */
 const { spawn } = require('child_process');
-const path=require('path');
-/* the page is index.html in the repository, and slitherlink-plotroom.html when
-   working on it loose; accept either */
-function pagePath(){
-  for(const p of ['index.html','slitherlink-plotroom.html',
-                  path.join(__dirname,'..','index.html')])
-    if(require('fs').existsSync(p))return p;
-  throw new Error('cannot find the page next to these tests');
-}
-
 const { JSDOM } = require('jsdom');
 const fs = require('fs');
 
 const PORT = 8123;
-const srv = spawn('node', ['dist/slink-gen.js', '--serve', '--port', String(PORT),
-  '--page', pagePath(), '--data', '/tmp/rooms-test.json', '--noopen']);
+const srv = spawn('node', ['server/slink-server.js', '--port', String(PORT),
+  '--page', 'public/index.html', '--data', '/tmp/rooms-test.json', '--noopen', '--open']);
 let out = '';
 srv.stdout.on('data', d => out += d);
 srv.stderr.on('data', d => out += d);
@@ -29,7 +19,7 @@ const ck = (n, a, b) => { const ok = JSON.stringify(a) === JSON.stringify(b); ok
 const base = `http://127.0.0.1:${PORT}/`;
 
 async function makePlayer(name) {
-  const html = await (await fetch(base)).text();
+  const html = require('./pageload.js').loadPage(__dirname);
   const dom = new JSDOM(html, {
     url: base, runScripts: 'dangerously', pretendToBeVisual: true,
     beforeParse(w) {

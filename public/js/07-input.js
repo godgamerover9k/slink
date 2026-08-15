@@ -83,7 +83,7 @@ function zoomAt(px, py, factor) {
 function svgPoint(evt) {
   const r = board.getBoundingClientRect();
   const vb = board.viewBox.baseVal;
-  // the viewBox origin moves when the sheet is panned or zoomed; leaving it
+  // the viewBox origin moves when the board is panned or zoomed; leaving it
   // out sends every click to the wrong segment
   return {
     x: vb.x + ((evt.clientX - r.left) / r.width) * vb.width,

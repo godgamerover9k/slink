@@ -1,16 +1,6 @@
 /* The page hosted on one origin (like Vercel) with the room server on another
    (like Render). Two players must still meet through it. */
 const {spawn}=require('child_process');
-const path=require('path');
-/* the page is index.html in the repository, and slitherlink-plotroom.html when
-   working on it loose; accept either */
-function pagePath(){
-  for(const p of ['index.html','slitherlink-plotroom.html',
-                  path.join(__dirname,'..','index.html')])
-    if(require('fs').existsSync(p))return p;
-  throw new Error('cannot find the page next to these tests');
-}
-
 const http=require('http');
 const fs=require('fs');
 const {JSDOM}=require('jsdom');
@@ -19,13 +9,13 @@ const pageBase=`http://127.0.0.1:${PAGE_PORT}/`;
 const roomBase=`http://127.0.0.1:${ROOM_PORT}`;
 
 // a dumb static host, standing in for Vercel: it serves the page and nothing else
-const html=fs.readFileSync(pagePath());
+const html=require('./pageload.js').loadPage(__dirname);
 const statics=http.createServer((req,res)=>{
   if(req.url.startsWith('/kv/')){ res.writeHead(404); return res.end('no server here'); }
   res.writeHead(200,{'Content-Type':'text/html'}); res.end(html);
 }).listen(PAGE_PORT);
 
-const srv=spawn('node',['slink-server.js','--port',String(ROOM_PORT),'--key',KEY,'--noopen','--data','/tmp/split.json']);
+const srv=spawn('node',['server/slink-server.js','--port',String(ROOM_PORT),'--key',KEY,'--noopen','--data','/tmp/split.json']);
 let out=''; srv.stdout.on('data',d=>out+=d); srv.stderr.on('data',d=>out+=d);
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 let pass=0,fail=0;
@@ -55,7 +45,9 @@ function player(url,store){
   ck('static host 404s /kv', (await fetch(pageBase+'kv/__health')).status, 404);
 
   console.log('\n--- a plain visit finds nothing, and says so ---');
-  const plain=player(pageBase); await wait(800);
+  // the page retries the health check before concluding it is alone, so give
+  // it longer than a single attempt takes
+  const plain=player(pageBase); await wait(2600);
   ck('no server found', plain.ev('store.ok'), false);
   ck('it explains', /Paste one above|on your own/.test(plain.$('serverNote').textContent), true);
 
@@ -94,7 +86,7 @@ function player(url,store){
   ck('still connected', A2.ev('store.ok'), true);
 
   console.log('\n--- and it can be typed in by hand ---');
-  const C=player(pageBase); await wait(800);
+  const C=player(pageBase); await wait(2600);
   C.$('serverIn').value=roomBase;
   C.$('serverIn').onchange();
   await wait(1200);

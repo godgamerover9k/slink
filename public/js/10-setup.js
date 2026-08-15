@@ -45,11 +45,11 @@ function setDims(R, C) {
 function refreshSize() {
   const [R, C] = rawDims(),
     ok = dimsOk(),
-    n = ok ? R * C : 0;
+    node = ok ? R * C : 0;
   document
     .querySelectorAll("#sizeChips .chip")
-    .forEach((b, i) =>
-      b.setAttribute("aria-pressed", ok && SIZES[i][0] === R && SIZES[i][1] === C),
+    .forEach((btn, i) =>
+      btn.setAttribute("aria-pressed", ok && SIZES[i][0] === R && SIZES[i][1] === C),
     );
   /* Two separate warnings: one about the size, which belongs beside the size
      boxes, and one about how long this difficulty will take, which belongs
@@ -60,27 +60,27 @@ function refreshSize() {
     msg = `${MIN_DIM}–${MAX_DIM} per side`;
     warn = true;
   } else if (Math.max(R, C) > 30) {
-    msg = `${n} cells · very large, build it in slink-gen and import it`;
+    msg = `${node} cells · very large, build it in slink-gen and import it`;
     warn = true;
-  } else msg = n + " cells";
+  } else msg = node + " cells";
 
   const diffHint = document.getElementById("diffHint");
   if (diffHint) {
-    let d = "",
+    let data = "",
       dwarn = false;
-    if (ok && pickDiff === "maximal" && n > 256) {
-      d = "at this size, Maximal can take several minutes to build";
+    if (ok && pickDiff === "maximal" && node > 256) {
+      data = "at this size, Maximal can take several minutes to build";
       dwarn = true;
-    } else if (ok && pickDiff === "maximal" && n > 144) {
-      d = "Maximal takes a while at this size";
+    } else if (ok && pickDiff === "maximal" && node > 144) {
+      data = "Maximal takes a while at this size";
     } else if (pickDiff === "maximal") {
-      d = "as few clues as the puzzle can keep — hardest";
+      data = "as few clues as the puzzle can keep — hardest";
     } else if (pickDiff === "tough") {
-      d = "fewer clues, harder going";
+      data = "fewer clues, harder going";
     } else if (pickDiff === "gentle") {
-      d = "plenty of clues to work from";
+      data = "plenty of clues to work from";
     }
-    diffHint.textContent = d;
+    diffHint.textContent = data;
     diffHint.classList.toggle("warn", dwarn);
   }
   sizeHint.textContent = msg;
@@ -123,10 +123,10 @@ function genStop() {
 
 /* throttled — the trimming phase reports on every clue it checks */
 function genUpdate(info) {
-  const t = Date.now();
-  if (t - genPaint < 90) return;
-  genPaint = t;
-  const el = elapsed(t - genT0);
+  const text = Date.now();
+  if (text - genPaint < 90) return;
+  genPaint = text;
+  const el = elapsed(text - genT0);
   if (info.stage === "loop") {
     genEls.box.classList.add("gen--wait");
     genEls.stage.textContent = "Laying out a loop";
@@ -152,27 +152,27 @@ function buildChips() {
   const sc = document.getElementById("sizeChips");
   sc.innerHTML = "";
   SIZES.forEach(([r, c]) => {
-    const b = document.createElement("button");
-    b.className = "chip";
-    b.type = "button";
-    b.textContent = `${r}×${c}`;
-    b.setAttribute("aria-pressed", "false");
-    b.onclick = () => setDims(r, c);
-    sc.appendChild(b);
+    const btn = document.createElement("button");
+    btn.className = "chip";
+    btn.type = "button";
+    btn.textContent = `${r}×${c}`;
+    btn.setAttribute("aria-pressed", "false");
+    btn.onclick = () => setDims(r, c);
+    sc.appendChild(btn);
   });
   const dc = document.getElementById("diffChips");
   dc.innerHTML = "";
-  Object.entries(DIFFS).forEach(([k, d]) => {
-    const b = document.createElement("button");
-    b.className = "chip";
-    b.type = "button";
-    b.textContent = d.label;
-    b.setAttribute("aria-pressed", k === pickDiff);
-    b.onclick = () => {
-      pickDiff = k;
+  Object.entries(DIFFS).forEach(([cell, data]) => {
+    const btn = document.createElement("button");
+    btn.className = "chip";
+    btn.type = "button";
+    btn.textContent = data.label;
+    btn.setAttribute("aria-pressed", cell === pickDiff);
+    btn.onclick = () => {
+      pickDiff = cell;
       buildChips();
     };
-    dc.appendChild(b);
+    dc.appendChild(btn);
   });
   refreshSize();
 }
@@ -206,8 +206,8 @@ function switchTab(isNew) {
 }
 
 function readName() {
-  const v = (document.getElementById("nameIn").value || "").trim().slice(0, 18);
-  return v || "Anon";
+  const value = (document.getElementById("nameIn").value || "").trim().slice(0, 18);
+  return value || "Anon";
 }
 
 async function saveMe() {
@@ -222,20 +222,20 @@ async function openPuzzle(puz) {
   if (puz.progress) {
     // restore an exported sheet mid-solve
     const pr = puz.progress,
-      n = puz.R * puz.C;
+      node = puz.R * puz.C;
     fresh.edges = pr.edges;
-    if (typeof pr.cells === "string" && pr.cells.length === n) fresh.cells = pr.cells;
-    if (typeof pr.diag === "string" && pr.diag.length === n) fresh.diag = pr.diag;
-    const t = now();
-    fresh.et = fresh.et.map(() => t);
-    fresh.ct = fresh.ct.map(() => t);
-    fresh.dt = fresh.dt.map(() => t);
+    if (typeof pr.cells === "string" && pr.cells.length === node) fresh.cells = pr.cells;
+    if (typeof pr.diag === "string" && pr.diag.length === node) fresh.diag = pr.diag;
+    const text = now();
+    fresh.et = fresh.et.map(() => text);
+    fresh.ct = fresh.ct.map(() => text);
+    fresh.dt = fresh.dt.map(() => text);
     /* Lines are coloured by whose pen drew them. Restored ones had no owner,
        so they came back graphite while anything drawn afterwards used your
        pen — the same sheet in two colours for no reason. Adopt them. */
     touchMe(fresh);
     const mineIdx = penSlot(me.id);
-    fresh.eo = fresh.eo.map((v, i) => (fresh.edges[i] === "1" ? mineIdx : v));
+    fresh.eo = fresh.eo.map((value, i) => (fresh.edges[i] === "1" ? mineIdx : value));
     if (pr.tree && typeof pr.tree === "object") restoreTree = pr.tree;
   }
   if (restoreTree) fresh.tree = restoreTree;
@@ -266,33 +266,33 @@ async function openPuzzle(puz) {
 /* ---- importing packs built by slink-gen ---- */
 const PACK_MAX = 200;
 
-function readPuzzle(o, i) {
+function readPuzzle(opt, i) {
   const where = `puzzle ${i + 1}`;
-  if (!o || typeof o !== "object") throw new Error(`${where} is not a puzzle`);
-  const R = Math.trunc(o.R),
-    C = Math.trunc(o.C);
+  if (!opt || typeof opt !== "object") throw new Error(`${where} is not a puzzle`);
+  const R = Math.trunc(opt.R),
+    C = Math.trunc(opt.C);
   if (!(R >= 2 && C >= 2)) throw new Error(`${where} has a grid smaller than 2×2`);
   if (R > PACK_MAX || C > PACK_MAX)
     throw new Error(`${where} is larger than ${PACK_MAX} a side`);
-  if (!Array.isArray(o.clues)) throw new Error(`${where} has no clue list`);
-  if (o.clues.length !== R * C)
-    throw new Error(`${where} lists ${o.clues.length} clues for a ${R}×${C} grid`);
-  const clues = o.clues.map(v => {
-    const n = v === null || v === undefined || v === "" ? -1 : Math.trunc(v);
-    if (!Number.isFinite(n) || n < -1 || n > 4)
+  if (!Array.isArray(opt.clues)) throw new Error(`${where} has no clue list`);
+  if (opt.clues.length !== R * C)
+    throw new Error(`${where} lists ${opt.clues.length} clues for a ${R}×${C} grid`);
+  const clues = opt.clues.map(value => {
+    const node = value === null || value === undefined || value === "" ? -1 : Math.trunc(value);
+    if (!Number.isFinite(node) || node < -1 || node > 4)
       throw new Error(`${where} has a clue outside 0–4`);
-    return n;
+    return node;
   });
-  const given = clues.filter(v => v >= 0).length;
+  const given = clues.filter(value => value >= 0).length;
   const out = {
     R,
     C,
     clues,
     given,
-    diff: DIFFS[o.diff] ? o.diff : "imported",
-    minimal: !!o.minimal,
+    diff: DIFFS[opt.diff] ? opt.diff : "imported",
+    minimal: !!opt.minimal,
   };
-  const pr = o.progress;
+  const pr = opt.progress;
   if (pr && typeof pr.edges === "string" && pr.edges.length === (R + 1) * C + R * (C + 1)) {
     out.progress = pr;
     if (pr.tree && typeof pr.tree !== "object") delete out.progress.tree;
@@ -337,33 +337,33 @@ function showPack(pack) {
   const box = document.getElementById("packList");
   box.hidden = false;
   box.innerHTML = "";
-  pack.puzzles.forEach((p, i) => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "pk";
-    b.innerHTML = `<span></span><span class="pk__meta"></span>`;
-    b.children[0].textContent = `${p.R}×${p.C} · ${p.given} clues`;
-    b.children[1].textContent =
-      (DIFFS[p.diff] ? DIFFS[p.diff].label : p.diff) + (p.minimal ? " · minimal" : "");
-    b.onclick = async () => {
+  pack.puzzles.forEach((player, i) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "pk";
+    btn.innerHTML = `<span></span><span class="pk__meta"></span>`;
+    btn.children[0].textContent = `${player.R}×${player.C} · ${player.given} clues`;
+    btn.children[1].textContent =
+      (DIFFS[player.diff] ? DIFFS[player.diff].label : player.diff) + (player.minimal ? " · minimal" : "");
+    btn.onclick = async () => {
       errEl.textContent = "";
-      const was = b.children[1].textContent;
-      b.children[1].textContent = "checking…";
-      b.disabled = true;
+      const was = btn.children[1].textContent;
+      btn.children[1].textContent = "checking…";
+      btn.disabled = true;
       await new Promise(r => setTimeout(r, 20));
-      const v = vetPuzzle(p);
-      b.children[1].textContent = was;
-      b.disabled = false;
-      if (!v.ok) {
-        errEl.textContent = `Import refused — ${v.why}.`;
+      const value = vetPuzzle(player);
+      btn.children[1].textContent = was;
+      btn.disabled = false;
+      if (!value.ok) {
+        errEl.textContent = `Import refused — ${value.why}.`;
         return;
       }
       await saveMe();
-      await openPuzzle(p);
-      if (v.warn) toast("Imported, but " + v.warn);
+      await openPuzzle(player);
+      if (value.warn) toast("Imported, but " + value.warn);
       box.hidden = true;
     };
-    box.appendChild(b);
+    box.appendChild(btn);
   });
   errEl.textContent = "";
   toast(
@@ -380,8 +380,8 @@ const EXE_NAMES = {
   linux: "slink-gen-linux-x64",
 };
 async function offerExe() {
-  const a = document.getElementById("getExe");
-  if (!a || !/^https?:$/.test(location.protocol)) return;
+  const anchor = document.getElementById("getExe");
+  if (!anchor || !/^https?:$/.test(location.protocol)) return;
   const ua = navigator.userAgent || "";
   const pick = /Windows/i.test(ua)
     ? EXE_NAMES.win
@@ -392,18 +392,18 @@ async function offerExe() {
       : EXE_NAMES.linux;
   // try the likely one first, then the rest, so a wrong guess still offers
   // something rather than nothing
-  const order = [pick, ...Object.values(EXE_NAMES).filter(n => n !== pick)];
+  const order = [pick, ...Object.values(EXE_NAMES).filter(node => node !== pick)];
   for (const name of order) {
     try {
       const r = await fetch(name, { method: "HEAD" });
       if (r.ok) {
-        a.href = name;
-        a.textContent = "Download slink-gen (" + name.replace(/^slink-gen-/, "") + ")";
-        a.setAttribute("download", name);
-        a.hidden = false;
+        anchor.href = name;
+        anchor.textContent = "Download slink-gen (" + name.replace(/^slink-gen-/, "") + ")";
+        anchor.setAttribute("download", name);
+        anchor.hidden = false;
         return;
       }
-    } catch (e) {
+    } catch (edge) {
       /* not published alongside the page */
     }
   }
@@ -412,36 +412,36 @@ async function offerExe() {
 document.getElementById("getGen").onclick = () => {
   // served as a file rather than carried inside the page, which kept 100KB of
   // generator in every page load for the few people who ever download it
-  const a = document.createElement("a");
-  a.href = "download/slink-gen.js";
-  a.download = "slink-gen.js";
-  a.click();
+  const anchor = document.createElement("a");
+  anchor.href = "download/slink-gen.js";
+  anchor.download = "slink-gen.js";
+  anchor.click();
   toast("Needs Node 18+. Run: node slink-gen.js --help");
 };
 
 document.getElementById("importBtn").onclick = async () => {
   if (window.showOpenFilePicker) {
     try {
-      const [h] = await window.showOpenFilePicker({
+      const [handle] = await window.showOpenFilePicker({
         types: [{ description: "Slitherlink", accept: { "application/json": [".json"] } }],
       });
-      const file = await h.getFile();
+      const file = await handle.getFile();
       const pack = readPack(await file.text());
-      loadedFrom = { name: file.name, handle: h };
+      loadedFrom = { name: file.name, handle: handle };
       showPack(pack);
       if (pack.puzzles.length === 1) document.querySelector("#packList .pk").click();
       return;
-    } catch (e) {
-      if (e && e.name === "AbortError") return; // they closed the picker
-      errEl.textContent = e.message || "Couldn't read that file.";
+    } catch (edge) {
+      if (edge && edge.name === "AbortError") return; // they closed the picker
+      errEl.textContent = edge.message || "Couldn't read that file.";
       return;
     }
   }
   document.getElementById("packIn").click();
 };
-document.getElementById("packIn").onchange = async e => {
-  const file = e.target.files && e.target.files[0];
-  e.target.value = "";
+document.getElementById("packIn").onchange = async edge => {
+  const file = edge.target.files && edge.target.files[0];
+  edge.target.value = "";
   if (!file) return;
   try {
     const pack = readPack(await file.text());
@@ -472,8 +472,8 @@ document.getElementById("createBtn").onclick = async () => {
     const puz = await generateAsync(R, C, pickDiff, genUpdate);
     puz.diff = pickDiff;
     await openPuzzle(puz);
-  } catch (e) {
-    errEl.textContent = e.message || "Something went wrong building that puzzle.";
+  } catch (edge) {
+    errEl.textContent = edge.message || "Something went wrong building that puzzle.";
   }
   generating = false;
   genStop();
@@ -483,8 +483,8 @@ document.getElementById("createBtn").onclick = async () => {
 
 document.getElementById("joinBtn").onclick = () =>
   joinRoom(document.getElementById("codeIn").value);
-document.getElementById("codeIn").addEventListener("keydown", e => {
-  if (e.key === "Enter") document.getElementById("joinBtn").click();
+document.getElementById("codeIn").addEventListener("keydown", edge => {
+  if (edge.key === "Enter") document.getElementById("joinBtn").click();
 });
 
 async function joinRoom(codeRaw) {
@@ -508,7 +508,7 @@ async function joinRoom(codeRaw) {
   let data;
   try {
     data = JSON.parse(res.value);
-  } catch (e) {
+  } catch (edge) {
     errEl.textContent = "That puzzle couldn't be read.";
     return false;
   }
@@ -529,13 +529,13 @@ async function joinRoom(codeRaw) {
 /* A link that opens straight into a puzzle. It carries the room server and key
    too when they are set, so one link is all anyone needs. */
 function roomLink(code) {
-  const u = new URL(location.href);
-  u.search = "";
-  u.hash = "";
-  u.searchParams.set("room", code);
-  if (store.base) u.searchParams.set("server", store.base);
-  if (store.key) u.searchParams.set("k", store.key);
-  return u.toString();
+  const url = new URL(location.href);
+  url.search = "";
+  url.hash = "";
+  url.searchParams.set("room", code);
+  if (store.base) url.searchParams.set("server", store.base);
+  if (store.key) url.searchParams.set("k", store.key);
+  return url.toString();
 }
 
 /* Where the rooms live, when the page itself is hosted somewhere that can't
@@ -557,14 +557,14 @@ function wireServerBox() {
   };
   say();
   const apply = async () => {
-    const v = box.value.trim().replace(/\/+$/, "");
-    if (v === (store.base || "")) return;
-    store.base = v;
+    const value = box.value.trim().replace(/\/+$/, "");
+    if (value === (store.base || "")) return;
+    store.base = value;
     try {
-      v
-        ? window.localStorage.setItem("sl:server", v)
+      value
+        ? window.localStorage.setItem("sl:server", value)
         : window.localStorage.removeItem("sl:server");
-    } catch (e) {}
+    } catch (edge) {}
     store.mode = "memory";
     store.needsKey = false;
     store.denied = false;
@@ -574,9 +574,9 @@ function wireServerBox() {
     soloNotice();
   };
   box.onchange = apply;
-  box.onkeydown = e => {
-    if (e.key === "Enter") {
-      e.preventDefault();
+  box.onkeydown = edge => {
+    if (edge.key === "Enter") {
+      edge.preventDefault();
       apply();
     }
   };
@@ -628,7 +628,7 @@ async function resumeLast() {
     closeSetup();
     toast("Picked up where you left off");
     return true;
-  } catch (e) {
+  } catch (edge) {
     return false;
   }
 }
@@ -636,7 +636,7 @@ async function rememberLast() {
   if (!room) return;
   try {
     await store.set(LAST_KEY, JSON.stringify({ at: Date.now(), room }), false);
-  } catch (e) {}
+  } catch (edge) {}
 }
 
 /* The address bar becomes the link to this puzzle, so copying out of the
@@ -644,15 +644,15 @@ async function rememberLast() {
    and key when they are set, because a link without them opens nothing. */
 function showRoomLink(code) {
   const link = roomLink(code);
-  const a = document.getElementById("roomcode");
-  if (a) {
-    a.textContent = code;
-    a.href = link;
-    a.title = link;
+  const anchor = document.getElementById("roomcode");
+  if (anchor) {
+    anchor.textContent = code;
+    anchor.href = link;
+    anchor.title = link;
   }
   try {
     history.replaceState(null, "", link);
-  } catch (e) {}
+  } catch (edge) {}
   return link;
 }
 

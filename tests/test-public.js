@@ -1,21 +1,11 @@
 /* A keyed server, as it would be exposed to the internet: two players who
    have the key can share; anyone who doesn't is refused. */
 const {spawn}=require('child_process');
-const path=require('path');
-/* the page is index.html in the repository, and slitherlink-plotroom.html when
-   working on it loose; accept either */
-function pagePath(){
-  for(const p of ['index.html','slitherlink-plotroom.html',
-                  path.join(__dirname,'..','index.html')])
-    if(require('fs').existsSync(p))return p;
-  throw new Error('cannot find the page next to these tests');
-}
-
 const {JSDOM}=require('jsdom');
 const PORT=8210, KEY='testkey123';
 const base=`http://127.0.0.1:${PORT}/`;
-const srv=spawn('node',['slink-server.js','--port',String(PORT),'--key',KEY,
-  '--page',pagePath(),'--data','/tmp/pub.json','--noopen']);
+const srv=spawn('node',['server/slink-server.js','--port',String(PORT),'--key',KEY,
+  '--page','public/index.html','--data','/tmp/pub.json','--noopen']);
 let out='';srv.stdout.on('data',d=>out+=d);srv.stderr.on('data',d=>out+=d);
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 let pass=0,fail=0;
@@ -24,7 +14,7 @@ const ck=(n,a,b)=>{const ok=JSON.stringify(a)===JSON.stringify(b);ok?pass++:fail
 
 async function player(withKey){
   const url=base+(withKey?'?k='+KEY:'');
-  const html=await (await fetch(base)).text();
+  const html = require('./pageload.js').loadPage(__dirname);
   const dom=new JSDOM(html,{url,runScripts:'dangerously',pretendToBeVisual:true,beforeParse(w){
     w.fetch=(u,o)=>fetch(new URL(u,base),o);
     w.matchMedia=()=>({matches:false,addListener(){},removeListener(){}});
