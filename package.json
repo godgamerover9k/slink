@@ -5,9 +5,13 @@
   "description": "Slitherlink plot room — the page and the room server that shares it",
   "main": "slink-server.js",
   "scripts": {
-    "start": "node slink-server.js"
+    "start": "node slink-server.js",
+    "test": "node tests/run-all.js"
   },
   "engines": {
     "node": ">=18"
+  },
+  "devDependencies": {
+    "jsdom": "^26.0.0"
   }
 }

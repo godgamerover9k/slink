@@ -7,8 +7,8 @@ sheet.
     index.html        the whole app — one file, no build step
     slink-server.js   serves that page and keeps the rooms
     render.yaml       tells Render how to run it
-    package.json      npm start
-    vercel.json       only matters if you also host the page on Vercel
+    package.json      npm start, npm test
+    tests/            the test suite — see tests/README.md
 
 ## Putting it online (Render, free)
 
@@ -71,12 +71,10 @@ too big to keep in a Git repository comfortably — if you want the download
 button to appear, drop `slink-gen-win-x64.exe` (or the mac/linux build) beside
 `index.html` in the deployed site.
 
-## If you also host the page on Vercel
+## Tests
 
-`vercel.json` is here for that case: the same repository can serve the page
-from Vercel while the rooms live on Render. Open the Vercel page once with the
-room server on the end,
+    npm install        # jsdom, needed only for the tests
+    npm test
 
-    https://your-site.vercel.app/?server=https://your-service.onrender.com
-
-and it remembers. You do not need this if you are only using Render.
+They drive the real page in a headless browser and check what it does. 388
+checks across 26 files at the time of writing.
