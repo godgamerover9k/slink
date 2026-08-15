@@ -120,7 +120,10 @@ function lanAddresses(port) {
   return out;
 }
 
-const PAGE_NAMES = ["slitherlink-plotroom.html", "plotroom.html", "index.html"];
+/* index.html first: it is what static hosts serve, so if a folder holds both
+   it is the one people expect. A leftover copy under the older name used to
+   win and quietly serve a stale build. */
+const PAGE_NAMES = ["index.html", "slitherlink-plotroom.html", "plotroom.html"];
 
 /* Only the app's own keys, so this can never be used as someone else's free
    storage, and nothing can escape the namespace. */
@@ -154,6 +157,19 @@ function makeServer(opt) {
         const f = path.join(dir, n);
         if (fs.existsSync(f)) return f;
       }
+    // Uploading the folder rather than its contents leaves everything one
+    // level down, so look there too rather than serving nothing.
+    for (const dir of [process.cwd(), here]) {
+      let kids = [];
+      try { kids = fs.readdirSync(dir, { withFileTypes: true }); } catch (e) { continue; }
+      for (const d of kids) {
+        if (!d.isDirectory() || d.name === "node_modules" || d.name.startsWith(".")) continue;
+        for (const n of PAGE_NAMES) {
+          const f = path.join(dir, d.name, n);
+          if (fs.existsSync(f)) return f;
+        }
+      }
+    }
     return null;
   };
 
@@ -303,6 +319,20 @@ function main() {
     if (lan.length) {
       console.log("  For other people on your network:");
       for (const a of lan) console.log("    " + a);
+    }
+    // say so loudly if there is more than one candidate lying about
+    if (page) {
+      const dir = path.dirname(page);
+      const others = PAGE_NAMES
+        .map(n => path.join(dir, n))
+        .filter(f => f !== page && fs.existsSync(f));
+      if (others.length) {
+        console.log("");
+        console.log("  NOTE: more than one page is present here:");
+        for (const o of others) console.log("    " + o + "  (ignored)");
+        console.log("  Serving " + path.basename(page) + ". If that is the wrong one,");
+        console.log("  delete the others so there is no doubt which is live.");
+      }
     }
     console.log(page ? "  Serving page: " + page
                      : "  NOTE: no plot room html found yet — put "

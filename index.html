@@ -322,6 +322,7 @@ body.weighted .seg.off{opacity:0}
           <button class="btn btn--wide" id="trialStart">Start a branch</button>
           <button class="btn btn--wide btn--solid" id="trialReject" hidden>Contradiction — rule it out</button>
           <button class="btn btn--wide" id="trialAccept" hidden>Accept this branch</button>
+          <button class="btn" id="trialRename" hidden>Rename</button>
           <button class="btn" id="trialDrop" hidden>Discard</button>
           <button class="btn" id="trialTest">Test</button>
         </div>
@@ -332,6 +333,7 @@ body.weighted .seg.off{opacity:0}
         <div class="controls">
           <button class="btn" id="undo">Undo</button>
           <button class="btn" id="redo">Redo</button>
+          <button class="btn" id="clearlines">Clear lines</button>
           <button class="btn" id="clearx">Clear X marks</button>
           <button class="btn" id="clearfill">Clear colors</button>
           <button class="btn btn--wide" id="check">Check my lines</button>
@@ -1513,6 +1515,11 @@ function adopt(remote){
     else if(wasOn){ trial=null; document.body.classList.remove("trialing");
                     if(trunk.saved)loadSnapshot(trunk.saved); toast("That branch was removed"); }
   }
+  /* Anything still queued has not reached anyone else, so nothing in the copy
+     we just merged can legitimately have replaced it. Re-apply it or your own
+     marks can blink out until the next write lands. */
+  for(const op of pending)applyOp(room,op);
+
   if(branchView){
     if(trial&&branches.get(trial.id)){ refreshBase(); loadSnapshot(deriveBoard(trial)); }
     else { trial=null; document.body.classList.remove("trialing"); loadSnapshot(trunk.saved); }
@@ -1600,12 +1607,12 @@ function queueOp(e,val){
     if(room.edges[e]===v)return false;
     notePremise("edge",e,room.edges[e],v);
     room.edges=room.edges.slice(0,e)+v+room.edges.slice(e+1);
-    room.eo[e]=playerIdx(room,me.id);
+    room.eo[e]=penSlot(me.id);
     recordMark(trial,"edge",e,v);
     return true;
   }
-  const op={e,val:String(val),t:now(),by:playerIdx(room,me.id)};
-  if(op.by<0){ touchMe(room); op.by=playerIdx(room,me.id); }
+  const op={e,val:String(val),t:now(),by:penSlot(me.id)};
+  if(playerIdx(room,me.id)<0)touchMe(room);
   if(!applyOp(room,op))return false;
   const p=room.players[op.by]; if(p)p.ops=(p.ops||0)+1;
   pending.push(op); recent.push(op);
@@ -1700,6 +1707,17 @@ function edgeGeom(i){
   return {x1:PAD+c*S,y1:PAD+r*S,x2:PAD+c*S,y2:PAD+(r+1)*S};
 }
 
+/* A pen used to be recorded as a position in the players list. Two clients
+   can build that list in different orders, so the same number meant different
+   people and lines took on someone else's colour. It is now derived from the
+   player's id, which every client agrees on and which never shifts when
+   somebody joins or leaves. */
+function penSlot(id){
+  if(!id)return -1;
+  let h=2166136261;
+  for(let i=0;i<id.length;i++){ h^=id.charCodeAt(i); h=Math.imul(h,16777619); }
+  return (h>>>0)%PENS.length;
+}
 function penVar(idx){ return idx<0?"var(--graphite)":`var(${PENS[idx%PENS.length]})`; }
 
 function buildBoard(){
@@ -1819,6 +1837,10 @@ function render(){
     if(s==="1"){ seg.classList.add("on"); seg.setAttribute("stroke",soloPen?"var(--graphite)":penVar(room.eo[i])); }
     else seg.classList.remove("on");
     xEls[i].classList.toggle("on",s==="2");
+    if(s==="2"){
+      const col=soloPen?"var(--x-mark)":penVar(room.eo[i]);
+      for(const ln of xEls[i].children)ln.setAttribute("stroke",col);
+    }
     seg.classList.toggle("off",s==="2");     // "ruled out" in the weighted view
 
   }
@@ -1915,16 +1937,16 @@ function paintDiagonals(){
 
 function renderRack(){
   const rack=document.getElementById("rack");
-  const live=[...room.players].sort((a,b)=>(b.ops||0)-(a.ops||0));
+  const live=[...room.players].sort((a,b)=>(a.name||"").localeCompare(b.name||""));
   rack.innerHTML="";
   live.forEach(p=>{
-    const idx=playerIdx(room,p.id);
+    const idx=penSlot(p.id);      // same rule the board uses
     const idle=now()-p.seen>IDLE_MS;
     const el=document.createElement("div");
     el.className="pen"+(p.id===me.id?" pen--you":"")+(idle?" pen--idle":"");
     el.style.setProperty("--pen",`var(${PENS[idx%PENS.length]})`);
     el.innerHTML=`<div class="pen__barrel"></div><div class="pen__meta">
-      <span class="pen__name"></span><span class="pen__count">${p.ops||0}</span></div>`;
+      <span class="pen__name"></span></div>`;
     el.querySelector(".pen__name").textContent=p.name+(p.id===me.id?" (you)":"");
     rack.appendChild(el);
   });
@@ -2041,6 +2063,7 @@ const toggleTo=(current,want)=>current===want?BLANK:want;
 
 let dragVal=null, dragWant=null, dragSeen=null, dragMode=null, dragVert=null, stroke=null, undoStack=[], redoStack=[];
 let dragLast=null, dragFrom=null, diagHeld=false, relHeld=false, relFrom=-1, relWantSame=false;
+let diagStart=null;
 
 /* hold D for diagonal scribbles */
 window.addEventListener("keydown",e=>{ if(e.key==="r"||e.key==="R")relHeld=true; });
@@ -2265,15 +2288,16 @@ board.addEventListener("pointerdown",e=>{
     return;
   }
 
-  if(diagHeld){                                // diagonal scribble, purely cosmetic
-    const k=cellAt(p.x,p.y);
-    if(k<0)return;
+  if(diagHeld){
+    /* A diagonal is drawn corner to corner, not clicked: start near a dot and
+       finish near the opposite one. The nearest dot is used, so it does not
+       have to be hit exactly. */
     e.preventDefault();
     board.setPointerCapture(e.pointerId);
     ensureCells(room);
     redoStack=[]; stroke=[]; dragSeen=new Set(); dragFrom=p; dragLast=p;
-    if(room.diag[k]!=="0"){ dragMode="diagclear"; dragSeen.add(k); setDiagUser(k,"0",true); }
-    else dragMode="diag";
+    diagStart=vertAt(p.x,p.y);
+    dragMode="diag";
     return;
   }
 
@@ -2326,15 +2350,9 @@ board.addEventListener("pointermove",e=>{
   if(dragMode===null||!room)return;
   const p=svgPoint(e);
 
-  if(dragMode==="diag"||dragMode==="diagclear"){
-    const slant=(p.x-dragFrom.x)*(p.y-dragFrom.y)>=0?"1":"2";
-    alongDrag(p,(x,y)=>{
-      const k=cellAt(x,y);
-      if(k<0||dragSeen.has(k))return;
-      dragSeen.add(k);
-      setDiagUser(k,dragMode==="diagclear"?"0":slant,true);
-    });
-    return;
+  if(dragMode==="diag"){
+    dragLast=p;
+    return;                                  // decided when the drag ends
   }
   if(dragMode==="cell"){
     alongDrag(p,(x,y)=>{
@@ -2348,6 +2366,26 @@ board.addEventListener("pointermove",e=>{
   alongDrag(p,(x,y)=>dragTo(vertAt(x,y)));
 });
 const endDrag=e=>{
+  if(dragMode==="diag"){
+    const p=(e&&e.clientX!==undefined)?svgPoint(e):dragLast;
+    const to=p?vertAt(p.x,p.y):null;
+    const a=diagStart;
+    if(a&&to&&Math.abs(to.r-a.r)===1&&Math.abs(to.c-a.c)===1){
+      // the square between the two corners, and which way the stroke leans
+      const k=Math.min(a.r,to.r)*g.C+Math.min(a.c,to.c);
+      const slant=((to.r-a.r)*(to.c-a.c)>0)?"1":"2";
+      if(k>=0&&k<g.NC){
+        const cur=room.diag[k];
+        setDiagUser(k,cur===slant?"0":slant,false);
+      }
+    }else if(a&&to&&a.r===to.r&&a.c===to.c){
+      // a tap on a corner clears whichever square you are pointing into
+      const c=cellAt(dragFrom.x,dragFrom.y);
+      if(c>=0&&room.diag[c]!=="0")setDiagUser(c,"0",false);
+    }
+    diagStart=null; dragMode=null; stroke=null; dragLast=null; dragFrom=null;
+    return;
+  }
   if(dragMode==="rel"){
     const p=e&&e.clientX!==undefined?svgPoint(e):null;
     const to=p?cellAt(p.x,p.y):-1;
@@ -2407,6 +2445,7 @@ const trialEls={
   test:document.getElementById("trialTest"),
   reject:document.getElementById("trialReject"),
   accept:document.getElementById("trialAccept"),
+  rename:document.getElementById("trialRename"),
   drop:document.getElementById("trialDrop")
 };
 
@@ -2448,7 +2487,7 @@ function newBranchId(){
 function treeRec(node){
   return {id:node.id,parent:node.parent,premise:node.premise,
           marks:node.marks,by:node.by,byId:node.byId,at:node.at,
-          ord:node.ord,dead:!!node.dead};
+          ord:node.ord,name:node.name||"",dead:!!node.dead};
 }
 function pushTree(node){
   if(!room)return;
@@ -2473,7 +2512,7 @@ function syncTreeFromRoom(){
     if(r.dead)continue;
     branches.set(id,{id,parent:r.parent,children:[],premise:r.premise,
                      marks:r.marks||{e:{},k:{},d:{}},by:r.by,byId:r.byId,at:r.at,
-                     ord:r.ord,undo:[],redo:[],doneShown:false});
+                     ord:r.ord,name:r.name||"",undo:[],redo:[],doneShown:false});
   }
   for(const n of branches.values()){
     const par=n.parent?branches.get(n.parent):null;
@@ -2522,7 +2561,7 @@ function deriveBoard(node){
   }
   const eo=base.eo?base.eo.slice():room.eo.slice();
   for(const n of chainOf(node)){
-    const own=n.byId?playerIdx(room,n.byId):-1;
+    const own=n.byId?penSlot(n.byId):-1;
     for(const i in ((n.marks||{}).e||{}))
       if(n.marks.e[i]==="1")eo[+i]=own;
   }
@@ -2633,6 +2672,21 @@ function findTrouble(st){
     if(closed)msgs.push("the loop closes early, leaving the sheet unfinished");
   }
   return {bad,msgs:[...new Set(msgs)],solved:info.solved};
+}
+
+function branchLabel(n){
+  if(!n)return "Master";
+  return n.name?n.name:premiseLabel(n.premise);
+}
+
+function renameBranch(n){
+  if(!n)return;
+  const given=prompt("Name this branch\n\nLeave it empty to go back to showing its premise.",
+                     n.name||"");
+  if(given===null)return;
+  n.name=given.trim().slice(0,40);
+  pushTree(n);
+  render();
 }
 
 function premiseLabel(p){
@@ -2859,6 +2913,7 @@ function renderTree(){
     b.title=premise||label;
     if(flag&&flag.kind==="clash")b.classList.add("tw--clash");
     b.onclick=()=>switchBranch(id);
+    if(id!=null)b.ondblclick=ev=>{ ev.preventDefault(); renameBranch(branches.get(id)); };
     b.dataset.branch=(id==null?"":id);
     if(id!=null){
       b.draggable=true;
@@ -2931,10 +2986,10 @@ function renderTree(){
     if(t.solved)return {text:"CLOSES",kind:"good"};
     return null;
   };
-  row("Sheet",0,null,null,"the shared sheet");
+  row("Master",0,null,null,"the shared sheet everyone works on");
   const walk=(ids,depth)=>ids.forEach(id=>{
     const n=branches.get(id); if(!n)return;
-    row(premiseLabel(n.premise),depth,id,flagFor(n),premiseLabel(n.premise));
+    row(branchLabel(n),depth,id,flagFor(n),premiseLabel(n.premise));
     walk(n.children,depth+1);
   });
   walk(trunk.children,1);
@@ -2946,6 +3001,7 @@ function renderTrial(){
   const on=!!trial;
   trialEls.reject.hidden=!on;
   trialEls.accept.hidden=!on;
+  trialEls.rename.hidden=!on;
   trialEls.drop.hidden=!on;
   trialEls.start.disabled=!room||!!(room&&room.solvedAt);
   trialEls.start.textContent=on?"Branch from here":"Start a branch";
@@ -2980,6 +3036,7 @@ function renderTrial(){
 
 trialEls.start.onclick=createBranch;
 trialEls.accept.onclick=acceptBranch;
+trialEls.rename.onclick=()=>renameBranch(trial);
 trialEls.reject.onclick=()=>rejectBranch(true);
 trialEls.drop.onclick=()=>rejectBranch(false);
 
@@ -3042,11 +3099,63 @@ document.getElementById("check").onclick=()=>{
   setTimeout(()=>badEls.forEach(b=>b.style.opacity=0),2600);
   const sol=solutionFor();
   if(!sol){ toast("Couldn't check this sheet"); return; }
-  let wrong=0;
-  for(let i=0;i<g.E;i++) if(room.edges[i]==="1"&&sol[i]!==ON) wrong++;
-  toast(wrong ? `${wrong} segment${wrong===1?"":"s"} in the wrong place`
-      : over ? `${over} clue${over===1?"":"s"} already has too many lines`
-      : "Everything drawn so far is right");
+  ensureCells(room);
+
+  let wrongLines=0, wrongX=0;
+  for(let i=0;i<g.E;i++){
+    if(room.edges[i]==="1"&&sol[i]!==ON)wrongLines++;
+    if(room.edges[i]==="2"&&sol[i]===ON)wrongX++;   // ruled out a real line
+  }
+
+  /* Which side of the true loop each square is on, so the colours can be
+     judged too. Flood outwards from beyond the edge, crossing only where the
+     solution has no line: everything reached that way is outside. */
+  const outside=new Uint8Array(g.NC);
+  {
+    const seen=new Uint8Array(g.NC);
+    const stack=[];
+    for(let c=0;c<g.C;c++){
+      if(sol[g.H(0,c)]!==ON&&!seen[c]){ seen[c]=1; stack.push(c); }
+      const b=(g.R-1)*g.C+c;
+      if(sol[g.H(g.R,c)]!==ON&&!seen[b]){ seen[b]=1; stack.push(b); }
+    }
+    for(let r=0;r<g.R;r++){
+      const l=r*g.C, rt=r*g.C+g.C-1;
+      if(sol[g.V(r,0)]!==ON&&!seen[l]){ seen[l]=1; stack.push(l); }
+      if(sol[g.V(r,g.C)]!==ON&&!seen[rt]){ seen[rt]=1; stack.push(rt); }
+    }
+    while(stack.length){
+      const k=stack.pop(); outside[k]=1;
+      const r=(k/g.C)|0,c=k%g.C;
+      const step=[[r-1,c,g.H(r,c)],[r+1,c,g.H(r+1,c)],[r,c-1,g.V(r,c)],[r,c+1,g.V(r,c+1)]];
+      for(const [nr,nc,e] of step){
+        if(nr<0||nc<0||nr>=g.R||nc>=g.C)continue;
+        const n=nr*g.C+nc;
+        if(seen[n]||sol[e]===ON)continue;
+        seen[n]=1; stack.push(n);
+      }
+    }
+  }
+  // blue and yellow are opposite sides; whichever way round, they must agree
+  let blueOut=0,blueIn=0,wrongColour=0;
+  for(let k=0;k<g.NC;k++){
+    if(room.cells[k]==="1")outside[k]?blueOut++:blueIn++;
+  }
+  const blueMeansOutside=blueOut>=blueIn;
+  for(let k=0;k<g.NC;k++){
+    const m=room.cells[k];
+    if(m==="0")continue;
+    const isOut=!!outside[k];
+    const ok=(m==="1")?(isOut===blueMeansOutside):(isOut!==blueMeansOutside);
+    if(!ok){ wrongColour++; badEls[k].style.opacity=1; }
+  }
+
+  const parts=[];
+  if(wrongLines)parts.push(`${wrongLines} segment${wrongLines===1?"":"s"} in the wrong place`);
+  if(wrongX)parts.push(`${wrongX} × where a line belongs`);
+  if(wrongColour)parts.push(`${wrongColour} square${wrongColour===1?"":"s"} coloured the wrong side`);
+  if(!parts.length&&over)parts.push(`${over} clue${over===1?"":"s"} already has too many lines`);
+  toast(parts.length?parts.join(" · "):"Everything drawn so far is right");
 };
 
 document.getElementById("zoomIn").onclick=()=>zoomAt(view.x+view.w/2,view.y+view.h/2,1.3);
@@ -3118,6 +3227,12 @@ document.getElementById("exportBtn").onclick=async()=>{
   }
   download(`slitherlink-${room.code||"sheet"}.json`,text);
   toast("Exported puzzle and progress");
+};
+
+document.getElementById("clearlines").onclick=()=>{
+  let n=0;
+  for(let i=0;i<g.E;i++) if(room.edges[i]==="1"){ queueOp(i,"0"); n++; }
+  render(); toast(n?"Lines cleared":"No lines to clear");
 };
 
 document.getElementById("clearx").onclick=()=>{
@@ -3329,7 +3444,7 @@ async function openPuzzle(puz){
        so they came back graphite while anything drawn afterwards used your
        pen — the same sheet in two colours for no reason. Adopt them. */
     touchMe(fresh);
-    const mineIdx=playerIdx(fresh,me.id);
+    const mineIdx=penSlot(me.id);
     fresh.eo=fresh.eo.map((v,i)=>fresh.edges[i]==="1"?mineIdx:v);
     if(pr.tree&&typeof pr.tree==="object")restoreTree=pr.tree;
   }
