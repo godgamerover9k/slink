@@ -45,6 +45,23 @@ const key=(el,k)=>el.dispatchEvent(new window.KeyboardEvent('keydown',{key:k,bub
  await wait(50);
  ck('up at the top does nothing', ev('!!trial'), false);
 
+ console.log('\n--- up and down follow the branch you are on ---');
+ // without touching the list first: whichever row is current moves
+ ev('switchBranch(null)'); ev('render()');
+ const current=()=>[...window.document.querySelectorAll('.tw')]
+   .find(r=>r.getAttribute('aria-current')==='true');
+ ck('the master is current', !!current(), true);
+ key(current(),'ArrowDown');
+ await wait(50);
+ ck('down from the master reaches the first branch', ev('!!trial'), true);
+ const one=ev('trial.id');
+ key(current(),'ArrowDown');
+ await wait(50);
+ ck('down again moves on', ev('trial.id')!==one, true);
+ key(current(),'ArrowUp');
+ await wait(50);
+ ck('and up comes back', ev('trial.id'), one);
+
  console.log('\n--- the board still scrolls with arrows ---');
  ev('zoomAt(view.x+view.w/2,view.y+view.h/2,2)');
  const before=ev('view.y');

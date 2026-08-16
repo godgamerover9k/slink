@@ -52,7 +52,8 @@ const activeRow = () => {
   ck('one row: the sheet', rows(), ['Master']);
   ck('sheet is active', activeRow(), 'Master');
   ck('no keep button exists', $('trialKeep'), null);
-  ck('reject hidden on the sheet', $('trialReject').hidden, true);
+  // the settle buttons live in one group that appears only on a branch
+  ck('nothing to settle while on the master', $('trialSettle').hidden, true);
 
   console.log('\n--- first mark becomes the premise ---');
   $('trialStart').click();

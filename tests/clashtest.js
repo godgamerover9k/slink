@@ -24,22 +24,26 @@ const flags=()=>[...window.document.querySelectorAll('.tw')].map(r=>({
  $('rowsIn').value='6';$('colsIn').value='6';$('nameIn').value='t';
  $('createBtn').click();
  for(let i=0;i<300&&!ev('room');i++)await wait(100);
+ /* A branch can no longer contradict what is above it, so the only way to end
+    up disagreeing is for the master to decide something afterwards. */
  const e=ev('engine.H(2,2)');
- ev(`setEdgeUser(${e},"1",false)`);            // the sheet says: line here
  $('trialStart').click();
- const b=ev('trial.id');
- ev(`setEdgeUser(${ev('engine.V(0,0)')},"1",false)`); // agrees with everything
+ ev(`setEdgeUser(${e},"1",false)`);            // the branch marks an open edge
+ ev(`setEdgeUser(${ev('engine.V(0,0)')},"1",false)`);
+ ev('switchBranch(null)');
  ev('render()');
- ck('a branch that adds nothing contradictory is not flagged',
-    flags().find(f=>/r1c1/.test(f.label)||f.red===true)?.red||false, false);
- ev(`setEdgeUser(${e},"2",false)`);            // now overwrite the sheet's line
+ ck('nothing is flagged yet', flags().some(f=>f.red), false);
+
+ ev(`setEdgeUser(${e},"2",false)`);            // the master now says otherwise
  ev('render()');
  const row=flags().find(f=>f.red);
- ck('overwriting a decision above is flagged', !!row, true);
- ck('and says how many', /OVERWRITES 1/.test(row?row.flag:''), true);
- ev(`setEdgeUser(${e},"1",false)`);            // put it back
+ ck('the branch is flagged as disagreeing', !!row, true);
+ ck('and says so plainly', /DISAGREES WITH ABOVE/.test(row?row.flag:''), true);
+
+ ev(`setEdgeUser(${e},"1",false)`);            // master agrees again
  ev('render()');
- ck('agreeing again clears the flag', flags().some(f=>f.red), false);
+ ck('agreement clears the flag', flags().some(f=>f.red), false);
+
  console.log(`\n${pass} passed, ${fail} failed`);
  process.exit(fail?1:0);
 })();

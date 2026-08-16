@@ -291,3 +291,14 @@ body.weighted .seg.off{opacity:0}
 .penpick__dot{width:20px;height:20px;border-radius:50%;border:1px solid var(--rule);
   cursor:pointer;padding:0}
 .penpick__dot:hover{outline:2px solid var(--graphite);outline-offset:1px}
+
+/* your own row in the player list is clickable in two places */
+.pen--mine .pen__name{cursor:pointer;text-decoration:underline dotted var(--rule);
+  text-underline-offset:3px}
+.pen--mine .pen__name:hover{text-decoration-color:var(--graphite)}
+.pen--mine .pen__barrel{cursor:pointer}
+.pen--mine .pen__barrel:hover{outline:2px solid var(--graphite);outline-offset:2px;border-radius:3px}
+
+/* section labels inside the how-to-play panel */
+.legend .toolgroup{margin:14px 0 4px}
+.legend .toolgroup:first-child{margin-top:0}

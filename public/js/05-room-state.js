@@ -1,7 +1,10 @@
 /* ============================================================
    4. Shared puzzle state
    ============================================================ */
-const PENS = ["--pen-1", "--pen-2", "--pen-3", "--pen-4", "--pen-5", "--pen-6"];
+/* Graphite is last so it is never handed out automatically — nobody is given
+   black by chance, but anyone can choose it. */
+const PENS = ["--pen-1", "--pen-2", "--pen-3", "--pen-4", "--pen-5", "--pen-6", "--graphite"];
+const AUTO_PENS = 6;
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const ROOM_KEY = c => "sl:room:" + c;
 const INDEX_KEY = "sl:index";
@@ -96,6 +99,10 @@ const store = {
   get ok() {
     return this.mode === "artifact" || this.mode === "http";
   },
+  /* Chosen at the start: an offline puzzle is never written anywhere shared,
+     even when a room server is sitting right there. */
+  offline: false,
+
   get solo() {
     return !this.ok;
   },
@@ -104,6 +111,10 @@ const store = {
   },
 
   async probe() {
+    if (this.offline) {
+      this.mode = "memory";
+      return false;
+    }
     if (typeof window !== "undefined" && window.storage) {
       try {
         await window.storage.set("sl:probe", String(Date.now()), true);
@@ -524,6 +535,15 @@ function queueOp(edge, val) {
     // goes into the branch, not the master
     const value = String(val);
     if (room.edges[edge] === value) return false;
+    const above = settledAbove("edge", edge);
+    if (above) {
+      toast("The branch above already decided this. A branch can only add to it.");
+      return false;
+    }
+    if (undoesPremise("edge", edge, value)) {
+      toast("That is this branch's assumption. Clear the rest of the branch first.");
+      return false;
+    }
     notePremise("edge", edge, room.edges[edge], value);
     room.edges = room.edges.slice(0, edge) + value + room.edges.slice(edge + 1);
     room.eo[edge] = penSlot(me.id);
@@ -590,6 +610,15 @@ function queueCell(cell, val) {
   if (trial) {
     const value = String(val);
     if (room.cells[cell] === value) return false;
+    const above = settledAbove("cell", cell);
+    if (above) {
+      toast("The branch above already decided this. A branch can only add to it.");
+      return false;
+    }
+    if (undoesPremise("cell", cell, value)) {
+      toast("That is this branch's assumption. Clear the rest of the branch first.");
+      return false;
+    }
     notePremise("cell", cell, room.cells[cell], value);
     room.cells = room.cells.slice(0, cell) + value + room.cells.slice(cell + 1);
     recordMark(trial, "cell", cell, value);

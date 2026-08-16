@@ -29,7 +29,8 @@ const ck=(n,a,b)=>{const ok=JSON.stringify(a)===JSON.stringify(b);ok?pass++:fail
  for(let i=0;i<300&&!A.ev('room');i++)await wait(100);
 
  console.log('--- changing your name ---');
- ck('the control is offered once in a puzzle', A.$('meEdit').hidden, false);
+ ck('your own row is the control',
+    A.ev(`!!document.querySelector('.pen--mine .pen__name')`), true);
  const before=A.ev('me.name');
  ck('starts as typed', before, 'alice');
  A.ev(`setMyName("Mara")`);
@@ -53,13 +54,28 @@ const ck=(n,a,b)=>{const ok=JSON.stringify(a)===JSON.stringify(b);ok?pass++:fail
  ck('the rack agrees',
     A.ev(`document.querySelector('.pen').style.getPropertyValue('--pen')`), 'var(--pen-4)');
 
+ console.log('\n--- clicking your name asks for a new one ---');
+ A.ev(`document.querySelector('.pen--mine .pen__name').onclick()`);
+ await wait(50);
+ ck('the prompt renamed you', A.ev('me.name'), 'Mara');
+
  console.log('\n--- the picker ---');
- A.$('meEdit').onclick();
+ A.ev(`document.querySelector('.pen--mine .pen__barrel').onclick()`);
  await wait(50);
  const dots=A.w.document.querySelectorAll('.penpick__dot');
  ck('offers every pen', dots.length, A.ev('PENS.length'));
  dots[1].onclick();
  ck('picking one takes effect', A.ev(`room.players.find(p=>p.id===me.id).pen`), 1);
+ console.log('\n--- black is a choice, not an accident ---');
+ ck('the palette includes graphite', A.ev(`PENS[PENS.length-1]`), '--graphite');
+ ck('but it is never handed out automatically',
+    A.ev(`[...Array(200).keys()].every(n=>penVar(n)!== 'var(--graphite)')`), true);
+ A.ev(`setMyPen(PENS.length-1)`);
+ ck('choosing it works', A.ev(`penVar(penSlot(me.id))`), 'var(--graphite)');
+ const eBlack=A.ev('engine.H(3,1)');
+ A.ev(`setEdgeUser(${eBlack},"1",false)`); A.ev('render()');
+ ck('and lines come out black', A.ev(`segEls[${eBlack}].getAttribute('stroke')`), 'var(--graphite)');
+
  console.log(`\n${pass} passed, ${fail} failed`);
  process.exit(fail?1:0);
 })();

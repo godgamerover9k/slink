@@ -44,8 +44,12 @@ const ck=(n,a,b)=>{const ok=JSON.stringify(a)===JSON.stringify(b);ok?pass++:fail
  B.ev('render()'); A.ev('render()');
  ck('alice sees the normal button', A.$('newsheet').textContent, 'Load a new puzzle');
  ck('alice can press it', A.$('newsheet').disabled, false);
- ck('bob is told whose it is', /Only alice/.test(B.$('newsheet').textContent), true);
- ck('and cannot press it', B.$('newsheet').disabled, true);
+ ck('bob is not shown the button at all', B.$('newsheet').hidden, true);
+ ck('nor the buttons that would wipe the puzzle',
+    [B.$('clearlines').hidden, B.$('clearx').hidden, B.$('clearfill').hidden], [true,true,true]);
+ ck('and he is told whose puzzle it is', /Only alice/.test(B.$('guestNote').textContent), true);
+ ck('alice keeps all of hers',
+    [A.$('newsheet').hidden, A.$('clearlines').hidden, A.$('clearx').hidden], [false,false,false]);
 
  console.log('\n--- and pressing it anyway does nothing ---');
  const before=B.ev('JSON.stringify(room.clues)');

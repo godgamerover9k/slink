@@ -76,15 +76,16 @@ function buildPenMap() {
   for (const player of players) {
     const h = penSlot(player.id);
     if (penMap.has(h)) continue;
-    let state = h % PENS.length;
-    for (let i = 0; i < PENS.length && used.has(state); i++) state = (state + 1) % PENS.length;
+    // only the coloured pens are handed out; graphite is chosen, never given
+    let state = h % AUTO_PENS;
+    for (let i = 0; i < AUTO_PENS && used.has(state); i++) state = (state + 1) % AUTO_PENS;
     used.add(state);
     penMap.set(h, state);
   }
 }
 function penVar(idx) {
   if (idx < 0) return "var(--graphite)";
-  const state = penMap && penMap.has(idx) ? penMap.get(idx) : idx % PENS.length;
+  const state = penMap && penMap.has(idx) ? penMap.get(idx) : idx % AUTO_PENS;
   return `var(${PENS[state]})`;
 }
 
@@ -187,7 +188,9 @@ function buildBoard() {
   gSegGhost = mk("g");
   gSegDrawn = gSeg;
   board.append(
-    gBoard, gFill, gDiag, gBad, gX, gSegGhost, gSeg, gRel, premGroup, gDot, gClue, traceEl,
+    // dots sit under the lines: a line should run through them, not stop at
+    // a bead sitting on top of it
+    gBoard, gFill, gDiag, gBad, gDot, gX, gSegGhost, gSeg, gRel, premGroup, gClue, traceEl,
   );
 }
 
@@ -330,8 +333,10 @@ function render() {
      actually chosen a colour, in which case ignoring it looks broken. */
   const mine = (room.players || []).find(player => player.id === me.id);
   const chosePen = !!(mine && mine.pen !== undefined && mine.pen !== null);
-  const soloPen =
-    !chosePen && (room.players || []).filter(player => now() - player.seen < IDLE_MS).length < 2;
+  /* Graphite is for a puzzle that has only ever had one person on it. Once
+     somebody else has drawn here the colours mean something, and dropping
+     them the moment they step away rewrites what is on the board. */
+  const soloPen = !chosePen && (room.players || []).length < 2;
   buildPenMap();
 
   for (let i = 0; i < EDGE_COUNT; i++) {
@@ -393,8 +398,12 @@ function render() {
   // alone left the line blank on the very render that finished the puzzle
   document.getElementById("statline").textContent =
     room.solvedAt || info.solved ? "Loop closed — puzzle complete" : "";
+  /* "20×20 · Maximal · minimal" told you the difficulty twice in words that
+     look like they disagree. Say the size, the difficulty, and how many clues
+     you actually have. */
+  const clueCount = room.given != null ? room.given : room.clues.filter(v => v >= 0).length;
   document.getElementById("sizeline").textContent =
-    `${room.R}×${room.C} · ${(DIFFS[room.diff] || {}).label || room.diff}${room.minimal ? " · minimal" : ""}`;
+    `${room.R}×${room.C} · ${(DIFFS[room.diff] || {}).label || room.diff} · ${clueCount} clues`;
 
   if (info.solved && !room.solvedAt && !trial) {
     room.solvedAt = now();
@@ -545,6 +554,17 @@ function renderRack() {
     el.innerHTML = `<div class="pen__barrel"></div><div class="pen__meta">
       <span class="pen__name"></span></div>`;
     el.querySelector(".pen__name").textContent = player.name + (player.id === me.id ? " (you)" : "");
+    /* Your own row is the control: the name changes your name, the pencil
+       changes your colour. A separate button was one more thing to find. */
+    if (player.id === me.id) {
+      el.classList.add("pen--mine");
+      const nameEl = el.querySelector(".pen__name");
+      nameEl.title = "click to change your name";
+      nameEl.onclick = () => editMyName();
+      const barrel = el.querySelector(".pen__barrel");
+      barrel.title = "click to change your colour";
+      barrel.onclick = () => choosePen(barrel);
+    }
     rack.appendChild(el);
   });
   const online = room.players.filter(player => now() - player.seen < IDLE_MS).length;

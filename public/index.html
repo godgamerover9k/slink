@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Plot Room — multiplayer Slitherlink</title>
+<title>WeSLink — Slitherlink together</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -38,7 +38,6 @@
       <section class="block">
         <h3 class="block__title">Players <span id="onlinecount"></span></h3>
         <div class="rack" id="rack"></div>
-        <button class="linkbtn" id="meEdit" hidden>Change name or colour</button>
       </section>
 
       <section class="block">
@@ -51,13 +50,26 @@
         <h3 class="block__title">Branches <span id="trialTag"></span></h3>
         <div class="tree" id="trialTree"></div>
         <p class="trial__copy" id="trialCopy">Branch off to test a guess.</p>
+        <p class="toolgroup">Start</p>
         <div class="controls">
-          <button class="btn btn--wide" id="trialStart">Start a branch</button>
-          <button class="btn btn--wide btn--solid" id="trialReject" hidden>Contradiction — rule it out</button>
-          <button class="btn btn--wide" id="trialAccept" hidden>Accept this branch</button>
-          <button class="btn" id="trialRename" hidden>Rename</button>
-          <button class="btn" id="trialDrop" hidden>Discard</button>
+          <button class="btn btn--wide" id="trialStart">Branch from here</button>
         </div>
+
+        <div id="trialSettle" hidden>
+          <p class="toolgroup">Settle this branch</p>
+          <div class="controls">
+            <button class="btn btn--wide btn--solid" id="trialReject">Contradiction — rule it out</button>
+            <button class="btn btn--wide" id="trialAccept">Accept onto the parent</button>
+          </div>
+
+          <p class="toolgroup">This branch</p>
+          <div class="controls">
+            <button class="btn" id="trialRename">Rename</button>
+            <button class="btn" id="trialDrop">Discard</button>
+          </div>
+        </div>
+
+        <label class="tgl" style="margin-top:12px"><input type="checkbox" id="optChain"><span class="tgl__box"></span>Start another branch after settling one</label>
       </section>
 
       <section class="block">
@@ -90,6 +102,7 @@
         </div>
 
         <p class="toolgroup">This puzzle</p>
+        <p class="panhint" id="guestNote" hidden></p>
         <div class="controls">
           <button class="btn btn--wide" id="exportBtn">Export puzzle + progress</button>
           <button class="btn btn--wide btn--solid" id="newsheet">Load a new puzzle</button>
@@ -103,18 +116,26 @@
       </section>
 
       <section class="block">
-        <h3 class="block__title">Controls
+        <h3 class="block__title">How to play
           <button class="linkbtn block__toggle" id="ctrlToggle" aria-expanded="true">hide</button>
         </h3>
         <div class="legend">
+          <p class="toolgroup">The rules</p>
+          <p>Draw one closed loop. Each number says how many of its four sides the loop uses.</p>
+          <p>The loop never crosses itself or branches, and every number must come out exactly right.</p>
+
+          <p class="toolgroup">Drawing</p>
           <p><b>Click</b> a segment between two dots to draw a line.</p>
-          <p><b>Shift-click</b> (or right-click) marks it <b>×</b>.</p>
+          <p><b>Shift-click</b> (or right-click) marks it <b>×</b>, meaning no line here.</p>
           <p><b>Ctrl-click</b> a square to fill it <span class="swatch swatch--blue"></span>, <b>Alt-click</b> to fill it <span class="swatch swatch--yellow"></span>.</p>
           <p>Repeating the same click removes the mark. <b>Drag</b> to repeat it across the puzzle.</p>
-          <p>Draw one closed loop. Each number says how many of its four sides the loop uses.</p>
+          <p>Hold <b>D</b> and drag corner to corner for a diagonal, <b>R</b> and drag between two squares to claim they are on the same side (shift for opposite).</p>
+
+          <p class="toolgroup">Branches</p>
           <p>Stuck? <b>Branch</b> off and guess. Your first mark is the branch's premise, circled on the board.</p>
+          <p>A branch only adds to what is above it — it can never rub out what its parent decided.</p>
           <p>Branch again inside a branch to go deeper, or from the puzzle for a rival guess.</p>
-          <p>Hit a contradiction and <b>rule it out</b>: the branch goes, and the opposite of its premise is written one level up.</p>
+          <p>Hit a contradiction and <b>rule it out</b>: the branch goes, and the opposite of its premise is written where it stood.</p>
         </div>
       </section>
     </aside>
@@ -174,7 +195,8 @@
 </div>
 <div class="veil" id="veil">
   <div class="card">
-    <h2 id="cardTitle">Start plotting</h2>
+    <p class="done__eyebrow">WESLINK</p>
+    <h2 id="cardTitle">Hello</h2>
     <p class="sub" id="cardSub">One puzzle, one board, everybody's pens at once. Open a puzzle and share the code, or join one that's already running.</p>
 
     <div class="field">
@@ -204,6 +226,10 @@
         <label>Difficulty</label>
         <div class="chips" id="diffChips"></div>
         <p class="dims__hint" id="diffHint"></p>
+      </div>
+      <div class="field">
+        <label class="tgl"><input type="checkbox" id="optOffline"><span class="tgl__box"></span>Play on your own, offline</label>
+        <p class="dims__hint" id="offlineHint">Nothing is shared and no code is given out. Your progress stays in this browser.</p>
       </div>
       <button class="btn btn--solid btn--wide" id="createBtn" style="width:100%">Generate the puzzle</button>
       <div class="imp">

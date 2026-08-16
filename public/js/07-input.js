@@ -292,7 +292,9 @@ board.addEventListener("pointercancel", endPan, true);
 
 board.addEventListener("contextmenu", ev => ev.preventDefault());
 board.addEventListener("pointerdown", ev => {
-  if (!room || room.solvedAt) return;
+  /* Finishing does not put the pens away. People carry on tidying up, trying
+     other things, or comparing branches after the loop closes. */
+  if (!room) return;
   if (panning || spaceHeld || ev.button === 1) return;
   const pt = svgPoint(ev);
 

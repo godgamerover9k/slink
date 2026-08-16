@@ -33,7 +33,9 @@ const rows=()=>[...window.document.querySelectorAll('.tw__label')].map(e=>e.text
  ev(`setEdgeUser(${ev('engine.V(4,4)')},"1",false)`);
  ev('switchBranch(null)'); ev('render()');
 
- console.log('--- offshoots are tucked away ---');
+ console.log('--- offshoots are tucked away until you look ---');
+ // visiting a branch opens it, so start from a folded list
+ ev('openBranches.clear(); switchBranch(null); render()');
  ck('only the master and the parent are listed', rows().length, 2);
  const twist=window.document.querySelector('.tw__twist');
  ck('a marker shows there is something inside', !!twist, true);
@@ -43,7 +45,16 @@ const rows=()=>[...window.document.querySelectorAll('.tw__label')].map(e=>e.text
  window.document.querySelector('.tw__twist').onclick({stopPropagation(){}});
  ck('and it folds away again', rows().length, 2);
 
+ console.log('\n--- choosing a branch opens what is under it ---');
+ ev('openBranches.clear(); switchBranch(null); render()');
+ ck('folded to begin with', rows().length, 2);
+ ev(`switchBranch(${q(parent)})`); ev('render()');
+ ck('picking the parent reveals its offshoot', rows().length, 3);
+ ck('and no tooltip is left on the rows',
+    ev(`[...document.querySelectorAll('.tw')].every(r=>!r.title)`), true);
+
  console.log('\n--- the branch you are on is always reachable ---');
+ ev('openBranches.clear();');
  ev(`switchBranch(${q(kid)})`);
  ev('render()');
  ck('its parent is opened for you', rows().length, 3);

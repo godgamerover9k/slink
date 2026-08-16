@@ -9,6 +9,13 @@ document.getElementById("undo").onclick = doUndo;
 document.getElementById("redo").onclick = doRedo;
 
 document.getElementById("check").onclick = () => {
+  /* Checking is about the puzzle, not about whichever branch you happen to be
+     inside. A branch is a guess; being told a guess is wrong tells you
+     nothing you did not already accept when you made it. */
+  const onBranch = !!trial;
+  const wasOn = onBranch ? trial.id : null;
+  if (onBranch) switchBranch(null);
+
   let over = 0;
   for (let cell = 0; cell < engine.NC; cell++) {
     const text = cellSatisfied(cell) === 2;
@@ -107,7 +114,11 @@ document.getElementById("check").onclick = () => {
     parts.push(`${wrongColour} square${wrongColour === 1 ? "" : "s"} coloured the wrong side`);
   if (!parts.length && over)
     parts.push(`${over} clue${over === 1 ? "" : "s"} already has too many lines`);
-  toast(parts.length ? parts.join(" · ") : "Everything drawn so far is right");
+  toast(
+    (onBranch ? "On the puzzle: " : "") +
+      (parts.length ? parts.join(" · ") : "Everything drawn so far is right"),
+  );
+  if (onBranch) switchBranch(wasOn);
 };
 
 document.getElementById("zoomIn").onclick = () =>
@@ -322,42 +333,53 @@ function toast(msg) {
   toastTimer = setTimeout(() => t.classList.remove("on"), 2600);
 }
 
-/* Changing your name or colour, from the player list. Both take effect
-   everywhere as soon as the next sync goes out. */
-(function wireIdentity() {
-  const btn = document.getElementById("meEdit");
-  if (!btn) return;
-
-  const open = () => {
-    if (!room) return;
+/* Changing your name or colour. Both are reached by clicking the thing they
+   change, in the player list. */
+function editMyName() {
+  if (!room) return;
+  try {
     const asked = prompt("Your name in this puzzle", me.name || "");
     if (asked !== null && asked.trim()) setMyName(asked);
-    pickPen();
-  };
+  } catch (e) {}
+}
 
-  function pickPen() {
-    const box = document.getElementById("penPick");
-    if (box) {
-      box.remove();
-      return;
-    }
-    const wrap = document.createElement("div");
-    wrap.id = "penPick";
-    wrap.className = "penpick";
-    PENS.forEach((_, i) => {
-      const btn2 = document.createElement("button");
-      btn2.type = "button";
-      btn2.className = "penpick__dot";
-      btn2.style.background = `var(${PENS[i]})`;
-      btn2.title = "use this colour";
-      btn2.onclick = () => {
-        setMyPen(i);
-        wrap.remove();
-      };
-      wrap.appendChild(btn2);
-    });
-    btn.after(wrap);
+function choosePen(near) {
+  const open = document.getElementById("penPick");
+  if (open) {
+    open.remove();
+    return;
   }
+  const wrap = document.createElement("div");
+  wrap.id = "penPick";
+  wrap.className = "penpick";
+  PENS.forEach((_, slot) => {
+    const dot = document.createElement("button");
+    dot.type = "button";
+    dot.className = "penpick__dot";
+    dot.style.background = `var(${PENS[slot]})`;
+    dot.title = "use this colour";
+    dot.onclick = () => {
+      setMyPen(slot);
+      wrap.remove();
+    };
+    wrap.appendChild(dot);
+  });
+  (near.closest(".pen") || near).after(wrap);
+}
 
-  btn.onclick = open;
+/* Carry on with another branch after settling one. Remembered per browser,
+   since it is a way of working rather than something about the puzzle. */
+(function wireChain() {
+  const box = document.getElementById("optChain");
+  if (!box) return;
+  try {
+    chainBranches = window.localStorage.getItem("sl:chain") === "1";
+  } catch (e) {}
+  box.checked = chainBranches;
+  box.onchange = () => {
+    chainBranches = box.checked;
+    try {
+      window.localStorage.setItem("sl:chain", chainBranches ? "1" : "0");
+    } catch (e) {}
+  };
 })();

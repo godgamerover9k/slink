@@ -195,8 +195,11 @@ function deriveBoard(node) {
        they made them. Older branches have no per-mark owner, so fall back. */
     const fallback = n.byId ? penSlot(n.byId) : -1;
     const owners = (n.mo || {}).e || {};
+    // every edge mark has an author, not only the drawn ones: an x kept losing
+    // its owner here and came back black
     for (const i in (n.marks || {}).e || {})
-      if (n.marks.e[i] === "1") eo[+i] = owners[i] !== undefined ? owners[i] : fallback;
+      if (n.marks.e[i] !== "0")
+        eo[+i] = owners[i] !== undefined ? owners[i] : fallback;
   }
   return { edges, cells, diag, rels, eo };
 }
@@ -276,6 +279,15 @@ function cellName(cell) {
   return "r" + (((cell / engine.C) | 0) + 1) + "c" + ((cell % engine.C) + 1);
 }
 
+/* Names the dot itself, so a message can point at where the trouble is
+   rather than only saying that there is some. */
+function nearName(dot) {
+  const across = engine.C + 1;
+  const row = (dot / across) | 0,
+    col = dot % across;
+  return "r" + (row + 1) + "c" + (col + 1);
+}
+
 function cellsAtVert(value, into) {
   const C = engine.C,
     r = (value / (C + 1)) | 0,
@@ -309,8 +321,8 @@ function findTrouble(st) {
     }
   for (let value = 0; value < DOT_COUNT; value++)
     if (deg[value] > 2) {
-      msgs.push("three lines meet at one dot");
       cellsAtVert(value, bad);
+      msgs.push("three lines meet at one dot, by " + nearName(value));
     }
   for (let cell = 0; cell < CELL_COUNT; cell++) {
     const want = room.clues[cell];
@@ -324,10 +336,10 @@ function findTrouble(st) {
     }
     if (on > want) {
       bad.add(cell);
-      msgs.push("a clue has more lines than its number");
+      msgs.push("the " + want + " at " + cellName(cell) + " has too many lines");
     } else if (on + free < want) {
       bad.add(cell);
-      msgs.push("a clue can no longer reach its number");
+      msgs.push("the " + want + " at " + cellName(cell) + " can no longer reach its number");
     }
   }
   /* Everything the board says about which side of the loop a square is on,
@@ -372,7 +384,12 @@ function findTrouble(st) {
         if (((pa ^ pb) & 1) !== (diff & 1)) {
           bad.add(first < CELL_COUNT ? first : btn);
           if (btn < CELL_COUNT) bad.add(btn);
-          msgs.push(why);
+          // say which squares, so the message points somewhere
+          const at =
+            first < CELL_COUNT && btn < CELL_COUNT
+              ? " at " + cellName(first) + " and " + cellName(btn)
+              : " at " + cellName(first < CELL_COUNT ? first : btn);
+          msgs.push(why + at);
         }
         return;
       }
@@ -482,12 +499,60 @@ function premiseHolds(node) {
   return (player.kind === "cell" ? room.cells[player.idx] : room.edges[player.idx]) === player.to;
 }
 
+/* What the branch above has already settled. A branch may only mark things
+   left open there: it adds to its parent, it does not argue with it. Trying
+   to rub out or change something the parent decided is refused, so a branch
+   can never quietly contradict what it is built on. */
+function settledAbove(kind, idx) {
+  if (!trial) return null;
+  const base = trial.baseBoard || baseBoardOf(trial);
+  if (!base) return null;
+  const at =
+    kind === "edge" ? base.edges[idx] : kind === "cell" ? base.cells[idx] : "0";
+  return at && at !== "0" ? at : null;
+}
+
+/* How many marks a branch has made, so an assumption can be taken back only
+   while nothing has been built on it. */
+function markCount(node) {
+  if (!node || !node.marks) return 0;
+  let n = 0;
+  for (const kind of ["e", "k", "d", "r"]) n += Object.keys(node.marks[kind] || {}).length;
+  return n;
+}
+
+/* Whether this mark would undo the branch's own assumption. Taking it back is
+   fine while the branch is still just that assumption; once other marks rest
+   on it, undoing it quietly changes what everything else was based on. */
+function undoesPremise(kind, idx, to) {
+  if (!trial || !trial.premise) return false;
+  const p = trial.premise;
+  if (p.kind !== kind || p.idx !== idx) return false;
+  if (to === p.to) return false;
+  // everything except the assumption itself: those are what would be left
+  // standing on something no longer being assumed
+  const own = MARK_KEY[p.kind];
+  let others = 0;
+  for (const kindKey of ["e", "k", "d", "r"])
+    for (const at in (trial.marks || {})[kindKey] || {})
+      if (!(kindKey === own && +at === p.idx)) others++;
+  return others > 0;
+}
+
+/* A branch's premise is the thing it is assuming. Rubbing something out
+   assumes nothing — there is no claim in "this is no longer a line" — so a
+   clearing is never taken as the premise, and the branch waits for a real
+   one. */
 function notePremise(kind, idx, from, to) {
-  if (trial && !trial.premise && from !== to) trial.premise = { kind, idx, from, to };
+  if (!trial || trial.premise || from === to) return;
+  if (to === "0") return;
+  trial.premise = { kind, idx, from, to };
 }
 
 function switchBranch(id) {
   if (!room) return;
+  // looking at a branch means looking at what is under it
+  if (id != null) openBranches.add(id);
   const target = id == null ? null : branches.get(id);
   if (id != null && !target) return;
   if (!trial) trunk.saved = boardSnapshot(); // remember the master as it stands
@@ -505,7 +570,7 @@ function switchBranch(id) {
 }
 
 function createBranch() {
-  if (!room || room.solvedAt) return;
+  if (!room) return;      // branching still makes sense after a solve
   if (!trial && pending.length) flush(); // land real work before the sheet pauses
   const parent = trial;
   if (!trial) trunk.saved = boardSnapshot();
@@ -559,6 +624,17 @@ function dropSubtree(node) {
 
    Note this is an assertion, not a proof: unlike ruling a branch out, nothing
    here has been shown to follow. */
+/* Settling a branch usually means trying the next idea straight away, so this
+   offers to open one on the same parent. Off by default: it changes where you
+   end up after pressing a button, which should be a choice. */
+let chainBranches = false;
+
+function afterSettling(parentId) {
+  if (!chainBranches || !room || room.solvedAt) return;
+  switchBranch(parentId || null);
+  createBranch();
+}
+
 function acceptBranch() {
   const node = trial;
   if (!node) return;
@@ -615,6 +691,7 @@ function acceptBranch() {
   }
   render();
   flush();
+  afterSettling(parentId);
   const where = parentId ? "the branch above" : "the puzzle";
   toast(
     steps.length
@@ -648,6 +725,7 @@ function rejectBranch(deduce) {
         : "Branch discarded",
     );
   }
+  afterSettling(parentId);
 }
 
 function clearBranches() {
@@ -765,7 +843,7 @@ function renderTree() {
       const twist = document.createElement("span");
       twist.className = "tw__twist";
       twist.textContent = (kids.shut ? "▸ " : "▾ ") + kids.count;
-      twist.title = kids.shut ? `show ${kids.count} inside` : "hide what is inside";
+      twist.title = "";      // the count on the marker already says it
       twist.onclick = ev => {
         ev.stopPropagation();
         if (openBranches.has(id)) openBranches.delete(id);
@@ -774,7 +852,7 @@ function renderTree() {
       };
       btn.appendChild(twist);
     }
-    btn.title = premise || label;
+    btn.title = "";      // the row already says what it is
     if (flag && flag.kind === "clash") btn.classList.add("tw--clash");
     btn.onclick = () => switchBranch(id);
     if (id != null)
@@ -863,8 +941,11 @@ function renderTree() {
     const st = trial && trial.id === node.id ? null : deriveBoard(node);
     const twist = findTrouble(st);
     if (twist.msgs.length) return { text: "BROKEN", kind: "bad" };
+    /* A branch can no longer contradict what is above it, so this only turns
+       up on branches made before that rule, or when the master decided
+       something after a branch had already marked it. */
     const c = clashes(node);
-    if (c) return { text: "OVERWRITES " + c, kind: "clash" };
+    if (c) return { text: "DISAGREES WITH ABOVE", kind: "clash" };
     if (premiseSettled(node)) return { text: "ALREADY TRUE", kind: "good" };
     if (twist.solved) return { text: "CLOSES", kind: "good" };
     return null;
@@ -887,10 +968,10 @@ function renderTrial() {
   // undoing the premise leaves the branch assuming nothing; the next mark sets a new one
   if (trial && trial.premise && !premiseHolds(trial)) trial.premise = null;
   const on = !!trial;
-  trialEls.reject.hidden = !on;
-  trialEls.accept.hidden = !on;
-  trialEls.rename.hidden = !on;
-  trialEls.drop.hidden = !on;
+  // the whole group appears together, rather than four buttons arriving one
+  // by one in the middle of the panel
+  const settle = document.getElementById("trialSettle");
+  if (settle) settle.hidden = !on;
   trialEls.start.disabled = !room || !!(room && room.solvedAt);
   trialEls.start.textContent = on ? "Branch from here" : "Start a branch";
   trialEls.block.classList.toggle("on", on);
@@ -946,13 +1027,26 @@ function isOwner() {
 function ownerLabel() {
   return room && room.ownerName ? room.ownerName : "whoever opened this puzzle";
 }
+/* What only the person who opened the puzzle may do. Wiping everyone's lines,
+   xs or colours is as destructive as replacing the puzzle, so those go the
+   same way. A guest sees none of them rather than a row of dead buttons. */
+const OWNER_ONLY = ["newsheet", "clearlines", "clearx", "clearfill"];
+
 function applyOwnerRules() {
-  const btn = document.getElementById("newsheet");
-  if (!btn) return;
   const mine = isOwner();
-  btn.disabled = !mine;
-  btn.textContent = mine
-    ? "Load a new puzzle"
-    : "Only " + ownerLabel() + " can change the puzzle";
-  btn.title = mine ? "" : "Leave to start one of your own.";
+  for (const id of OWNER_ONLY) {
+    const btn = document.getElementById(id);
+    if (btn) btn.hidden = !mine;
+  }
+  const guest = document.getElementById("guestNote");
+  if (guest) {
+    guest.hidden = mine;
+    guest.textContent = mine ? "" : "Only " + ownerLabel() + " can change or clear this puzzle.";
+  }
+  const btn = document.getElementById("newsheet");
+  if (btn && mine) {
+    btn.disabled = false;
+    btn.textContent = "Load a new puzzle";
+    btn.title = "";
+  }
 }

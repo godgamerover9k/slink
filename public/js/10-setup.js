@@ -177,12 +177,17 @@ function buildChips() {
   refreshSize();
 }
 
+/* The first thing anyone sees. Uses their name if we know it, so returning
+   feels like coming back rather than starting over. */
+function greeting() {
+  const name = (me && me.name && me.name !== "Anon" ? me.name : "").trim();
+  return name ? "Hello, " + name : "Hello";
+}
+
 function openSetup(keepRoom) {
   keepRoomOnClose = !!keepRoom;
   veil.hidden = false;
-  document.getElementById("cardTitle").textContent = keepRoom
-    ? "New puzzle for this room"
-    : "Start plotting";
+  document.getElementById("cardTitle").textContent = keepRoom ? "New puzzle for this room" : greeting();
   document.getElementById("cardSub").textContent = keepRoom
     ? "Everyone on " + room.code + " gets the new puzzle as soon as it's ready."
     : "One puzzle, one board, everybody's pens at once. Open a puzzle and share the code, or join one that's already running.";
@@ -462,6 +467,14 @@ document.getElementById("createBtn").onclick = async () => {
     return;
   }
   const [R, C] = rawDims();
+  /* Decided here rather than later: an offline puzzle must never touch shared
+     storage at all, so the choice has to be made before anything is written. */
+  const wantOffline = !!(document.getElementById("optOffline") || {}).checked;
+  if (wantOffline !== store.offline) {
+    store.offline = wantOffline;
+    await store.probe();
+    soloNotice();
+  }
   await saveMe();
   generating = true;
   btn.disabled = true;
@@ -678,8 +691,6 @@ function enterRoom(code) {
   // invite anyone to, so showing one only misleads.
   const chip = document.getElementById("roomchip");
   if (chip) chip.hidden = !store.ok;
-  const edit = document.getElementById("meEdit");
-  if (edit) edit.hidden = false;      // your name and colour, once you are in
   // record the resume point straight away: on a 5s timer alone, closing the
   // tab quickly after joining lost it
   setTimeout(() => {
