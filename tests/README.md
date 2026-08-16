@@ -5,57 +5,107 @@ than what it is meant to do. Most exist because something got through once.
 
 ## Running them
 
-    npm install        # jsdom, needed only for the tests
-    npm test           # everything
-    node tests/test.js # one file
+    npm install                      # jsdom, needed only for the tests
+    npm test                         # everything that does not need a port
+    node tests/branches.js           # one file
 
 Run them from the repository root. In the browser the page arrives as
 `index.html` plus a stylesheet plus a folder of scripts; `pageload.js` stitches
-those back into one document so a test sees exactly what a browser sees.
+those back into one document so a test sees what a browser sees.
 
-Suites that bind a port (`test-server`, `test-public`, `test-split`,
-`test-render`, `test-onezip`, `linktest`) are left out of `npm test` and run
-one at a time, because two of them cannot hold the same port at once.
+The suites that start a server bind a port, so two of them cannot run at once.
+`npm test` leaves them out; run those one at a time:
+
+    node tests/server-basics.js
+    node tests/server-with-key.js
+    node tests/page-and-rooms-apart.js
+    node tests/puzzle-links.js
+    node tests/generator-page.js
+    node tests/generator-download-link.js
+    node tests/importing-packs.js some-pack.json
+    node tests/generating-progress.js
 
 ## What covers what
 
+Named so a failure says what broke without opening the file.
+
+### Drawing
+
 | file | covers |
 |---|---|
-| `test.js` | drawing: lines, ×s, colours, dragging, undo |
-| `test-branch.js` | branches: premises, nesting, contradictions, discarding |
-| `test-share.js` | two players on one puzzle, branches syncing between them |
-| `inherit.js` | a change on the master reaching the branches below it |
-| `accepttest.js` | accepting a branch onto its parent |
-| `ordertest.js` | branches staying put when renamed or drawn on |
-| `treetest.js` | collapsing offshoots, and premises already settled above |
-| `dragtest.js` | reordering branches by dragging |
-| `ownertest.js` | only whoever opened a puzzle can replace it |
-| `identitytest.js` | changing your name and pen colour |
-| `pentest.js` | pen colours agreeing on every screen |
-| `solotest.js` | plain graphite when you are the only one here |
-| `modetest.js` | the absent-lines view, and the parity checks |
-| `colorsolve.js` | finishing a puzzle by colouring, with no lines drawn |
-| `fixtest.js` | clear-lines, diagonals as drags, naming, checking |
-| `linktest.js` | shareable links and the address bar |
-| `savetest.js` | export, and saving back over a file you opened |
-| `exportcheck.js` | export carrying every branch |
-| `test-view.js` | zoom, pan, and clicks landing right when zoomed |
-| `coltest.js` | the branch column appearing and folding away |
-| `hidetest.js` | hiding the controls; colours in the absent-lines view |
-| `credittest.js`, `misctest.js` | credits, the player list, small things |
-| `test-sat.js` | the SAT solver agreeing with the older search |
-| `test-server.js`, `test-public.js`, `test-split.js` | the room server |
-| `test-render.js`, `test-onezip.js` | this repository, deployed as it stands |
-| `verify_sat.js` | check a generated pack really has one solution |
+| `drawing-basics.js` | lines, ×s, colours, dragging, undo |
+| `drawing-features.js` | diagonals, zoom, branch inheritance, export |
+| `cell-fills.js` | filling squares and the shapes that come out |
+| `mark-colours.js` | every mark in the pen of whoever made it |
+| `restored-line-colours.js` | lines from an imported file keeping an owner |
+| `playing-alone.js` | plain graphite when nobody else is here |
+| `zoom-and-pan.js` | clicks landing correctly when zoomed |
 
-`verify_sat.js` takes a pack file:
+### Branches
 
-    node tests/verify_sat.js some-pack.json
+| file | covers |
+|---|---|
+| `branches.js` | premises, nesting, contradictions, discarding |
+| `branch-list.js` | what the list shows as you move around it |
+| `branch-premise.js` | what may be assumed, and when it can be taken back |
+| `branch-authority.js` | a branch adds to its parent, never overrules it |
+| `branch-accept.js` | accepting a branch onto its parent |
+| `branch-opposite.js` | trying the other half of a guess |
+| `branch-chaining.js` | carrying straight on after settling one |
+| `branch-order.js` | branches staying put when renamed or drawn on |
+| `branch-reordering.js` | dragging them into a different order |
+| `branch-inheritance.js` | a change on the master reaching branches below |
+| `branch-disagreement.js` | a branch left out of step by a later change |
+| `branch-list-growth.js` | the list growing rather than scrolling |
+| `branch-column-layout.js` | the column appearing and folding away |
+| `contradiction-location.js` | saying *where* something is broken |
+
+### Two people at once
+
+| file | covers |
+|---|---|
+| `two-players.js` | two people on one puzzle, branches syncing |
+| `two-people-one-branch.js` | both editing one branch, nobody losing work |
+| `reorder-while-editing.js` | a reorder and an edit at the same moment |
+| `clock-skew.js` | machines whose clocks disagree |
+| `pens-across-screens.js` | pen colours agreeing on every screen |
+| `puzzle-owner.js` | only whoever opened a puzzle can replace it |
+| `name-and-colour.js` | changing your name and pen |
+
+### The page
+
+| file | covers |
+|---|---|
+| `hello-screen.js` | the opening screen and the way back |
+| `offline-puzzles.js` | a puzzle that never leaves the browser |
+| `check-puzzle.js` | checking the puzzle, not your current branch |
+| `solving-by-colour.js` | finishing with colours and no lines drawn |
+| `absent-lines-mode.js` | the absent-lines view and the parity checks |
+| `absent-lines-switching.js` | nothing flashing when it is switched off |
+| `hiding-the-controls.js` | folding the controls away |
+| `tools-and-diagonals.js` | clear-lines, diagonals as drags, naming |
+| `saving-files.js` | export, and saving back over a file you opened |
+| `export-with-branches.js` | export carrying every branch |
+| `canonical-links.js` | links naming the right address |
+| `keyboard.js` | arrow keys in the list and on the board |
+| `credits.js`, `small-things.js` | credits, the player list, odds and ends |
+
+### Underneath
+
+| file | covers |
+|---|---|
+| `sat-solver.js` | the SAT solver agreeing with the older search |
+| `verify-pack-is-unique.js` | a generated pack really has one solution |
+| `generating-progress.js` | what the progress bar reports while building |
+| `generator-page.js` | the generator's own page |
+| `generator-download-link.js` | offering the binary when one is published |
+| `server-basics.js`, `server-with-key.js` | the room server, open and keyed |
+| `page-and-rooms-apart.js` | page on one host, rooms on another |
+| `importing-packs.js` | reading a pack file |
 
 ## Writing another
 
-Copy the top of `solotest.js` — it is the shortest. A test builds a page,
+Copy the top of `playing-alone.js` — it is the shortest. A test builds a page,
 drives it through the same buttons a person would press, and compares what
 happened against what should have. Reach into internals (`room`, `engine`,
-`trial`) when that is the clearest way to set up a situation, but check the
-result the way a player would see it.
+`trial`) to set up a situation, but check the result the way a player sees it.

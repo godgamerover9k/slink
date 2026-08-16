@@ -3,9 +3,10 @@
 const {execFileSync}=require('child_process');
 const fs=require('fs'), path=require('path');
 const here=__dirname;
-const SKIP=new Set(['run-all.js','pageload.js','verify_sat.js','verify-pack.js','test-server.js',
-  'test-public.js','test-split.js','test-standalone.js','test-render.js',
-  'test-onezip.js','test-import.js','exetest.js','test-progress.js']);
+const SKIP=new Set(['run-all.js','pageload.js','verify-pack-is-unique.js',
+  'server-basics.js','server-with-key.js','page-and-rooms-apart.js',
+  'puzzle-links.js','generator-page.js','generator-download-link.js',
+  'importing-packs.js','generating-progress.js']);
 const files=fs.readdirSync(here).filter(f=>f.endsWith('.js')&&!SKIP.has(f)).sort();
 let pass=0,fail=0,broke=[];
 for(const f of files){

@@ -415,9 +415,10 @@ async function offerExe() {
   const order = [pick, ...Object.values(EXE_NAMES).filter(node => node !== pick)];
   for (const name of order) {
     try {
-      const r = await fetch(name, { method: "HEAD" });
+      // the binaries live beside the script version, in download/
+      const r = await fetch("download/" + name, { method: "HEAD" });
       if (r.ok) {
-        anchor.href = name;
+        anchor.href = "download/" + name;
         anchor.textContent = "Download slink-gen (" + name.replace(/^slink-gen-/, "") + ")";
         anchor.setAttribute("download", name);
         anchor.hidden = false;

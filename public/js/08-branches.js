@@ -552,7 +552,6 @@ function notePremise(kind, idx, from, to) {
 function switchBranch(id) {
   if (!room) return;
   // looking at a branch means looking at what is under it
-  if (id != null) openBranches.add(id);
   const target = id == null ? null : branches.get(id);
   if (id != null && !target) return;
   if (!trial) trunk.saved = boardSnapshot(); // remember the master as it stands
@@ -633,6 +632,25 @@ function afterSettling(parentId) {
   if (!chainBranches || !room || room.solvedAt) return;
   switchBranch(parentId || null);
   createBranch();
+}
+
+/* The other half of a guess. Testing "a line here" is usually followed by
+   testing "no line here", and building that by hand means recreating the
+   branch and remembering to mark the opposite. */
+function branchOnOpposite() {
+  if (!trial || !trial.premise) {
+    toast("Assume something first, then this tries the other way");
+    return;
+  }
+  const p = trial.premise;
+  const parentId = trial.parent || null;
+  const opposite = negate(p);
+  switchBranch(parentId);
+  createBranch();
+  if (!trial) return;
+  if (p.kind === "edge") setEdgeUser(p.idx, opposite, false);
+  else if (p.kind === "cell") setCellUser(p.idx, opposite, false);
+  toast("Trying " + premiseLabel({ ...p, to: opposite }) + " instead");
 }
 
 function acceptBranch() {
@@ -808,22 +826,21 @@ function reorderBranch(dragId, dropId, after) {
   return true;
 }
 
-/* Which branches are expanded. A view preference, so it stays on this screen
-   rather than being shared with everyone else. */
-const openBranches = new Set();
-
-/* The branch being worked on is always reachable, however its parents are set. */
-function onPathToTrial(id) {
-  if (!trial) return false;
+/* What the list shows, without anything to fold or unfold: the offshoots of
+   the branch you are on, and the offshoots of everything between it and the
+   master. Other branches are listed, but what hangs beneath them is not —
+   select one and its own offshoots appear. */
+function openPath() {
+  const path = new Set([null]);          // the master always shows its branches
   for (let node = trial; node; node = node.parent ? branches.get(node.parent) : null)
-    if (node.parent === id) return true;
-  return false;
+    path.add(node.id);
+  return path;
 }
 
 function renderTree() {
   const box = trialEls.tree;
   box.innerHTML = "";
-  const row = (label, depth, id, flag, premise, kids) => {
+  const row = (label, depth, id, flag, premise) => {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "tw";
@@ -837,35 +854,16 @@ function renderTree() {
       flagEl.textContent = flag.text;
       flagEl.className = "tw__flag " + flag.kind;
     }
-    /* Offshoots stay tucked away until you ask for them, with a count so you
-       can see there is something under there. */
-    if (kids) {
-      const twist = document.createElement("span");
-      twist.className = "tw__twist";
-      twist.textContent = (kids.shut ? "▸ " : "▾ ") + kids.count;
-      twist.title = "";      // the count on the marker already says it
-      /* The marker only says what is there. Opening and closing is done by
-         clicking the branch itself, which is what people reach for. */
-      twist.style.pointerEvents = "none";
-      btn.appendChild(twist);
-    }
     btn.title = "";      // the row already says what it is
+    if (flag && flag.why) {
+      const why = document.createElement("span");
+      why.className = "tw__why";
+      why.textContent = flag.why;
+      btn.appendChild(why);
+      btn.classList.add("tw--twoline");
+    }
     if (flag && flag.kind === "clash") btn.classList.add("tw--clash");
-    btn.onclick = () => {
-      // already here? then the click is about its offshoots
-      if (id != null && trial && trial.id === id && branches.get(id)) {
-        if (openBranches.has(id)) openBranches.delete(id);
-        else openBranches.add(id);
-        renderTrial();
-        return;
-      }
-      switchBranch(id);
-    };
-    if (id != null)
-      btn.ondblclick = ev => {
-        ev.preventDefault();
-        renameBranch(branches.get(id));
-      };
+    btn.onclick = () => switchBranch(id);
     btn.dataset.branch = id == null ? "" : id;
     if (id != null) {
       btn.draggable = true;
@@ -946,7 +944,9 @@ function renderTree() {
     // a parked branch is judged from the board its marks derive to
     const st = trial && trial.id === node.id ? null : deriveBoard(node);
     const twist = findTrouble(st);
-    if (twist.msgs.length) return { text: "BROKEN", kind: "bad" };
+    // the reason travels with the flag, so a branch can say what is wrong
+    // without having to be selected first
+    if (twist.msgs.length) return { text: "BROKEN", kind: "bad", why: twist.msgs[0] };
     /* A branch can no longer contradict what is above it, so this only turns
        up on branches made before that rule, or when the master decided
        something after a branch had already marked it. */
@@ -961,12 +961,10 @@ function renderTree() {
     ids.forEach(id => {
       const node = branches.get(id);
       if (!node) return;
-      const kids = node.children.filter(cell => branches.get(cell));
-      const shut = kids.length && !openBranches.has(id) && !onPathToTrial(id);
-      row(branchLabel(node), depth, id, flagFor(node), premiseLabel(node.premise),
-          kids.length ? { count: kids.length, shut } : null);
-      if (!shut) walk(node.children, depth + 1);
+      row(branchLabel(node), depth, id, flagFor(node), premiseLabel(node.premise));
+      if (path.has(id)) walk(node.children, depth + 1);
     });
+  const path = openPath();
   walk(trunk.children, 1);
 }
 
@@ -1021,6 +1019,7 @@ function renderTrial() {
 trialEls.start.onclick = createBranch;
 trialEls.accept.onclick = acceptBranch;
 trialEls.rename.onclick = () => renameBranch(trial);
+document.getElementById("trialFlip").onclick = branchOnOpposite;
 trialEls.reject.onclick = () => rejectBranch(true);
 trialEls.drop.onclick = () => rejectBranch(false);
 

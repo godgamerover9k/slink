@@ -152,9 +152,6 @@ body.trialing #board{cursor:cell}
 .tw__flag.clash{color:var(--pen-2)}
 .tw--clash .tw__label{color:var(--pen-2)}
 .tw__flag.good{color:var(--ok,#2E7D32)}
-.tw__twist{margin-left:6px;font-size:10px;color:var(--muted);cursor:pointer;
-  padding:1px 4px;border-radius:3px}
-.tw__twist:hover{background:var(--rule)}
 .tw--dragging{opacity:.4}
 .tw--over{box-shadow:inset 0 2px 0 var(--graphite)}
 .tw--under{box-shadow:inset 0 -2px 0 var(--graphite)}
@@ -312,3 +309,8 @@ body.weighted .seg.off{opacity:0}
 /* section labels inside the how-to-play panel */
 .legend .toolgroup{margin:14px 0 4px}
 .legend .toolgroup:first-child{margin-top:0}
+
+/* the reason a branch is broken, under its name */
+.tw--twoline{flex-wrap:wrap;height:auto;padding-top:4px;padding-bottom:4px}
+.tw__why{flex-basis:100%;font-size:10.5px;color:var(--pen-2);opacity:.85;
+  padding-left:14px;line-height:1.35}

@@ -47,6 +47,9 @@ function homeRedirectTarget(here) {
   if (!me || !me.id) me = { id: uid(), name: "" };
   document.getElementById("nameIn").value = me.name || "";
   placeBranchPanel();
+  // the download link has nothing to do with the room server, so it should not
+  // wait behind a probe that retries before giving up
+  offerExe();
   await store.probe();
   const linkRoom = (() => {
     try {
@@ -55,7 +58,6 @@ function homeRedirectTarget(here) {
       return "";
     }
   })();
-  offerExe();
   wireServerBox();
   soloNotice();
   // a link to a puzzle wins over whatever you were last looking at
