@@ -28,21 +28,52 @@ let dragLast = null,
   relWantSame = false;
 let diagStart = null;
 
-/* hold D for diagonal scribbles */
+/* Which key does what. Held down rather than pressed, so these are the keys
+   you lean on while dragging. Changed in the tools panel and remembered per
+   browser; the defaults are what they always were. */
+const KEY_DEFAULTS = { diagonal: "d", claim: "r" };
+const keyBinds = { ...KEY_DEFAULTS };
+
+(function loadKeys() {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem("sl:keys") || "{}");
+    for (const action in KEY_DEFAULTS)
+      if (typeof saved[action] === "string" && saved[action].length === 1)
+        keyBinds[action] = saved[action].toLowerCase();
+  } catch (e) {}
+})();
+
+function saveKeys() {
+  try {
+    window.localStorage.setItem("sl:keys", JSON.stringify(keyBinds));
+  } catch (e) {}
+}
+
+function setKeyBind(action, key) {
+  if (!(action in KEY_DEFAULTS)) return false;
+  const clean = String(key || "").toLowerCase();
+  if (clean.length !== 1 || !/[a-z0-9]/.test(clean)) return false;
+  // two actions on one key would make one of them unreachable
+  for (const other in keyBinds)
+    if (other !== action && keyBinds[other] === clean) return false;
+  keyBinds[action] = clean;
+  saveKeys();
+  return true;
+}
+
+const isKey = (ev, action) => (ev.key || "").toLowerCase() === keyBinds[action];
+
 window.addEventListener("keydown", ev => {
-  if (ev.key === "r" || ev.key === "R") relHeld = true;
+  if (isKey(ev, "claim")) relHeld = true;
+  if (isKey(ev, "diagonal")) diagHeld = true;
 });
 window.addEventListener("keyup", ev => {
-  if (ev.key === "r" || ev.key === "R") relHeld = false;
+  if (isKey(ev, "claim")) relHeld = false;
+  if (isKey(ev, "diagonal")) diagHeld = false;
 });
 window.addEventListener("blur", () => {
   relHeld = false;
-});
-window.addEventListener("keydown", ev => {
-  if (ev.key === "d" || ev.key === "D") diagHeld = true;
-});
-window.addEventListener("keyup", ev => {
-  if (ev.key === "d" || ev.key === "D") diagHeld = false;
+  diagHeld = false;
 });
 
 let view = { x: 0, y: 0, w: 0, h: 0 },
@@ -200,10 +231,22 @@ function dragTo(dot) {
 
 /* ctrl/cmd paints blue, alt paints yellow — checked before the button,
    because ctrl+click reports as a right-click on macOS */
+/* On a phone there are no modifier keys, so the same choices are made by a
+   bar of buttons instead. "draw" means behave exactly as a mouse does, so
+   nothing about the desktop controls changes. */
+let touchMode = "draw";
+let touchesDown = 0;      // fingers on the board right now
+
 function fillWanted(ev) {
+  if (touchMode === "blue") return BLUE;
+  if (touchMode === "yellow") return YELLOW;
   if (ev.ctrlKey || ev.metaKey) return BLUE;
   if (ev.altKey) return YELLOW;
   return null;
+}
+
+function wantsX(ev) {
+  return touchMode === "x" || ev.shiftKey || ev.button === 2;
 }
 
 /* ---- zoom and pan: needed once a sheet is bigger than the window ---- */
@@ -298,7 +341,11 @@ board.addEventListener("pointerdown", ev => {
   if (panning || spaceHeld || ev.button === 1) return;
   const pt = svgPoint(ev);
 
-  if (relHeld) {
+  if (touchMode === "move") return;      // one finger pans instead of drawing
+  // a second finger is the start of a pinch, not another pen
+  if (ev.pointerType === "touch" && touchesDown > 1) return;
+
+  if (relHeld || touchMode === "claim") {
     // claim about two squares
     const cell = cellAt(pt.x, pt.y);
     if (cell < 0) return;
@@ -310,7 +357,7 @@ board.addEventListener("pointerdown", ev => {
     return;
   }
 
-  if (diagHeld) {
+  if (diagHeld || touchMode === "diag") {
     /* A diagonal is drawn corner to corner, not clicked: start near a dot and
        finish near the opposite one. The nearest dot is used, so it does not
        have to be hit exactly. */
@@ -356,7 +403,7 @@ board.addEventListener("pointerdown", ev => {
   if (i < 0 && !onDot) return;
   ev.preventDefault();
   board.setPointerCapture(ev.pointerId);
-  dragWant = ev.shiftKey || ev.button === 2 ? XMARK : LINE;
+  dragWant = wantsX(ev) ? XMARK : LINE;
   dragMode = "edge";
   dragSeen = new Set();
   dragVert = dot;
@@ -488,3 +535,96 @@ function doRedo() {
   for (const st of grp) applyStep(st, st.to);
   render();
 }
+
+/* ---- touch ----
+   A phone has no shift, ctrl or alt, so the choices those make are offered as
+   buttons instead. Everything else — the same taps, the same drags — behaves
+   as it always did. */
+(function wireTouch() {
+  const bar = document.getElementById("modebar");
+  if (!bar) return;
+
+  const coarse =
+    (window.matchMedia && matchMedia("(pointer: coarse)").matches) ||
+    (navigator.maxTouchPoints || 0) > 0;
+  if (coarse) {
+    bar.hidden = false;
+    document.body.classList.add("touch");
+  }
+
+  bar.querySelectorAll(".modebar__btn").forEach(btn => {
+    btn.onclick = () => {
+      touchMode = btn.dataset.mode;
+      bar.querySelectorAll(".modebar__btn").forEach(other =>
+        other.classList.toggle("is-on", other === btn),
+      );
+    };
+  });
+})();
+
+/* Two fingers pinch to zoom and drag the board about. While two are down
+   nothing is drawn, so a pinch never leaves marks behind. */
+(function wirePinch() {
+  const board = document.getElementById("board");
+  if (!board) return;
+  const down = new Map();
+  let start = null;
+  let marksBefore = 0;
+
+  const spread = () => {
+    const [a, b] = [...down.values()];
+    return {
+      dist: Math.hypot(a.x - b.x, a.y - b.y),
+      mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+    };
+  };
+
+  board.addEventListener(
+    "pointerdown",
+    ev => {
+      if (ev.pointerType !== "touch") return;
+      if (down.size === 0) marksBefore = undoStack.length;
+      down.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      touchesDown = down.size;
+      if (down.size === 2) {
+        const wasDrawing = !!dragMode || !!stroke;
+        dragMode = null;          // whatever was being drawn, stop
+        stroke = null;
+        /* If the first finger drew something before the second landed, take it
+           back — a pinch is not a mark. Only what this gesture added: an
+           earlier mark is not ours to undo. */
+        if (wasDrawing) while (undoStack.length > marksBefore) doUndo();
+        start = { ...spread(), view: { ...view } };
+      }
+    },
+    true,
+  );
+
+  board.addEventListener(
+    "pointermove",
+    ev => {
+      if (!down.has(ev.pointerId)) return;
+      down.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      if (down.size !== 2 || !start) return;
+      ev.preventDefault();
+      const now2 = spread();
+      const scale = now2.dist > 0 && start.dist > 0 ? start.dist / now2.dist : 1;
+      const box = board.getBoundingClientRect();
+      view.w = start.view.w * scale;
+      view.h = start.view.h * scale;
+      // keep the point between the fingers under the fingers
+      view.x = start.view.x + ((start.mid.x - now2.mid.x) / box.width) * view.w;
+      view.y = start.view.y + ((start.mid.y - now2.mid.y) / box.height) * view.h;
+      applyView();
+    },
+    { passive: false },
+  );
+
+  const lift = ev => {
+    down.delete(ev.pointerId);
+    touchesDown = down.size;
+    if (down.size < 2) start = null;
+  };
+  board.addEventListener("pointerup", lift, true);
+  board.addEventListener("pointercancel", lift, true);
+})();

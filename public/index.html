@@ -29,6 +29,16 @@
         <span id="sizeline"></span>
         <span id="statline"></span>
       </div>
+      <!-- the phone's stand-in for the modifier keys; hidden on a desktop -->
+      <div class="modebar" id="modebar" hidden>
+        <button class="modebar__btn is-on" data-mode="draw">Line</button>
+        <button class="modebar__btn" data-mode="x">×</button>
+        <button class="modebar__btn" data-mode="blue">Blue</button>
+        <button class="modebar__btn" data-mode="yellow">Yellow</button>
+        <button class="modebar__btn" data-mode="diag">Slash</button>
+        <button class="modebar__btn" data-mode="claim">Claim</button>
+        <button class="modebar__btn" data-mode="move">Move</button>
+      </div>
       <div class="sheet">
         <svg id="board" role="img" aria-label="Slitherlink board"></svg>
       </div>
@@ -66,6 +76,8 @@
           <p class="toolgroup">This branch</p>
           <div class="controls">
             <button class="btn btn--wide" id="trialFlip">Try the opposite instead</button>
+            <button class="btn btn--wide" id="trialAdopt" hidden>Adopt a branch you have settled</button>
+            <button class="btn btn--wide" id="trialAgreed" hidden>Keep what holds either way</button>
             <button class="btn" id="trialRename">Rename</button>
             <button class="btn" id="trialDrop">Discard</button>
           </div>
@@ -107,6 +119,9 @@
           <button class="btn btn--wide" id="zoomReset" hidden>Fit the puzzle</button>
           <p class="panhint">Wheel scrolls · shift+wheel sideways · ctrl+wheel zooms · space-drag or middle-drag moves the board · arrow keys nudge</p>
         </div>
+
+        <p class="toolgroup">Keys</p>
+        <div class="keys" id="keyBinds"></div>
 
         <p class="toolgroup">This puzzle</p>
         <p class="panhint" id="guestNote" hidden></p>

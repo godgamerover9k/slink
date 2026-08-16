@@ -637,6 +637,143 @@ function afterSettling(parentId) {
 /* The other half of a guess. Testing "a line here" is usually followed by
    testing "no line here", and building that by hand means recreating the
    branch and remembering to mark the opposite. */
+/* One branch may take over another whose assumption it has already settled.
+   If this branch has decided the very thing that branch was guessing at, that
+   branch's work is no longer a guess here — it is simply true — so its marks
+   can be brought across and the branch itself put away. */
+function adoptable() {
+  if (!trial) return [];
+  const board = deriveBoard(trial);
+  const out = [];
+  for (const node of branches.values()) {
+    if (node.id === trial.id) continue;
+    if (isAncestor(node.id, trial) || isAncestor(trial.id, node)) continue;
+    const p = node.premise;
+    if (!p || p.to === "0") continue;
+    const here = p.kind === "edge" ? board.edges[p.idx] : p.kind === "cell" ? board.cells[p.idx] : null;
+    if (here === p.to) out.push(node);
+  }
+  return out;
+}
+
+function isAncestor(id, of) {
+  for (let node = of; node; node = node.parent ? branches.get(node.parent) : null)
+    if (node.parent === id) return true;
+  return false;
+}
+
+/* Two branches that assume opposite things about the same square. Between
+   them they cover every case: an edge is a line or it is not, a square is one
+   side or the other. So anything both of them agree on is true whichever way
+   the guess goes, and belongs on the parent. */
+function inverseOf(node) {
+  if (!node || !node.premise || node.premise.to === "0") return null;
+  const mine = node.premise;
+  const siblings = (node.parent ? branches.get(node.parent)?.children : trunk.children) || [];
+  for (const id of siblings) {
+    const other = branches.get(id);
+    if (!other || other.id === node.id || !other.premise) continue;
+    const theirs = other.premise;
+    if (theirs.kind !== mine.kind || theirs.idx !== mine.idx) continue;
+    if (theirs.to === "0" || theirs.to === mine.to) continue;
+    return other;
+  }
+  return null;
+}
+
+/* What both of a pair have decided the same way. */
+function agreedBetween(a, b) {
+  const out = [];
+  const boardA = deriveBoard(a),
+    boardB = deriveBoard(b);
+  const base = baseBoardOf(a);
+  const look = (kind, field) => {
+    const seen = new Set([
+      ...Object.keys((a.marks || {})[MARK_KEY[kind]] || {}),
+      ...Object.keys((b.marks || {})[MARK_KEY[kind]] || {}),
+    ]);
+    for (const at of seen) {
+      const idx = +at;
+      if (idx === a.premise.idx && kind === a.premise.kind) continue;   // the guess itself
+      const value = boardA[field][idx];
+      if (value === "0" || value !== boardB[field][idx]) continue;
+      if (base[field][idx] === value) continue;                        // already known above
+      out.push({ kind, idx, value });
+    }
+  };
+  look("edge", "edges");
+  look("cell", "cells");
+  return out;
+}
+
+function promoteAgreed() {
+  if (!trial) return;
+  const other = inverseOf(trial);
+  if (!other) {
+    toast("This needs a pair of branches assuming opposite things");
+    return;
+  }
+  const agreed = agreedBetween(trial, other);
+  if (!agreed.length) {
+    toast("The two branches have not agreed on anything yet");
+    return;
+  }
+  const parentId = trial.parent || null;
+  switchBranch(parentId);
+  let put = 0;
+  for (const mark of agreed) {
+    if (mark.kind === "edge") {
+      if (setEdgeUser(mark.idx, mark.value, false)) put++;
+    } else if (setCellUser(mark.idx, mark.value, false)) put++;
+  }
+  render();
+  flush();
+  toast(
+    put
+      ? `${put} mark${put === 1 ? "" : "s"} hold either way — put on ${parentId ? "the branch above" : "the puzzle"}`
+      : "Nothing new to put across",
+  );
+}
+
+function adoptBranch() {
+  const ready = adoptable();
+  if (!ready.length) {
+    toast("Nothing to adopt: no other branch is assuming something you have settled");
+    return;
+  }
+  const from = ready[0];
+  const board = deriveBoard(trial);
+  const marks = from.marks || {};
+  let taken = 0;
+  for (const [kind, key] of [
+    ["edge", "e"],
+    ["cell", "k"],
+    ["diag", "d"],
+  ]) {
+    for (const at in marks[key] || {}) {
+      const idx = +at;
+      const value = marks[key][at];
+      const here =
+        kind === "edge" ? board.edges[idx] : kind === "cell" ? board.cells[idx] : board.diag[idx];
+      if (here === value) continue;          // already so here
+      if (kind === "edge" && setEdgeUser(idx, value, false)) taken++;
+      else if (kind === "cell" && setCellUser(idx, value, false)) taken++;
+      else if (kind === "diag" && setDiagUser(idx, value, false)) taken++;
+    }
+  }
+  /* The branch it came from stays. Its work rests on its own premise, and
+     that premise being wrong somewhere else would not make this branch's
+     marks wrong: A implying B, and B implying C, does not make C false when A
+     is. Copying is enough. */
+  render();
+  flush();
+  toast(
+    taken
+      ? `Took ${taken} mark${taken === 1 ? "" : "s"} from ${branchLabel(from)}`
+      : `Nothing new to take from ${branchLabel(from)}`,
+  );
+}
+
 function branchOnOpposite() {
   if (!trial || !trial.premise) {
     toast("Assume something first, then this tries the other way");
@@ -976,6 +1113,21 @@ function renderTrial() {
   // by one in the middle of the panel
   const settle = document.getElementById("trialSettle");
   if (settle) settle.hidden = !on;
+  const agreed = document.getElementById("trialAgreed");
+  if (agreed) {
+    const other = on ? inverseOf(trial) : null;
+    const both = other ? agreedBetween(trial, other) : [];
+    agreed.hidden = !both.length;
+    if (both.length)
+      agreed.textContent =
+        "Keep the " + both.length + " mark" + (both.length === 1 ? "" : "s") + " that hold either way";
+  }
+  const adopt = document.getElementById("trialAdopt");
+  if (adopt) {
+    const ready = on ? adoptable() : [];
+    adopt.hidden = !ready.length;
+    if (ready.length) adopt.textContent = "Adopt " + branchLabel(ready[0]);
+  }
   trialEls.start.disabled = !room || !!(room && room.solvedAt);
   trialEls.start.textContent = on ? "Branch from here" : "Start a branch";
   trialEls.block.classList.toggle("on", on);
@@ -1020,6 +1172,8 @@ trialEls.start.onclick = createBranch;
 trialEls.accept.onclick = acceptBranch;
 trialEls.rename.onclick = () => renameBranch(trial);
 document.getElementById("trialFlip").onclick = branchOnOpposite;
+document.getElementById("trialAdopt").onclick = adoptBranch;
+document.getElementById("trialAgreed").onclick = promoteAgreed;
 trialEls.reject.onclick = () => rejectBranch(true);
 trialEls.drop.onclick = () => rejectBranch(false);
 

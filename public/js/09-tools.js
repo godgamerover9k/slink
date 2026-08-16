@@ -383,3 +383,50 @@ function choosePen(near) {
     } catch (e) {}
   };
 })();
+
+/* Rebinding the held keys. Click the key, press another. */
+(function wireKeys() {
+  const box = document.getElementById("keyBinds");
+  if (!box) return;
+  const LABELS = { diagonal: "Diagonal", claim: "Claim" };
+  let listening = null;
+
+  function draw() {
+    box.innerHTML = "";
+    for (const action in LABELS) {
+      const row = document.createElement("div");
+      row.className = "keys__row";
+      const name = document.createElement("span");
+      name.textContent = LABELS[action];
+      const key = document.createElement("button");
+      key.className = "keys__key";
+      key.textContent = listening === action ? "press a key" : keyBinds[action].toUpperCase();
+      key.onclick = () => {
+        listening = listening === action ? null : action;
+        draw();
+      };
+      row.append(name, key);
+      box.appendChild(row);
+    }
+  }
+
+  window.addEventListener(
+    "keydown",
+    ev => {
+      if (!listening) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (ev.key === "Escape") {
+        listening = null;
+      } else if (setKeyBind(listening, ev.key)) {
+        listening = null;
+      } else {
+        toast("That key is taken, or cannot be used");
+      }
+      draw();
+    },
+    true,
+  );
+
+  draw();
+})();

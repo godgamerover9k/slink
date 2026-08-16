@@ -314,3 +314,30 @@ body.weighted .seg.off{opacity:0}
 .tw--twoline{flex-wrap:wrap;height:auto;padding-top:4px;padding-bottom:4px}
 .tw__why{flex-basis:100%;font-size:10.5px;color:var(--pen-2);opacity:.85;
   padding-left:14px;line-height:1.35}
+
+/* ---- on a phone ---- */
+.modebar{display:flex;gap:6px;overflow-x:auto;padding:6px 0;margin-bottom:6px;
+  -webkit-overflow-scrolling:touch}
+.modebar__btn{flex:0 0 auto;font-family:var(--mono);font-size:11px;letter-spacing:.06em;
+  padding:9px 12px;border:1px solid var(--rule);border-radius:4px;background:var(--sheet);
+  color:var(--graphite);cursor:pointer;min-height:40px}
+.modebar__btn.is-on{background:var(--graphite);color:var(--sheet);border-color:var(--graphite)}
+
+body.touch .panhint{display:none}         /* wheel and space-drag mean nothing here */
+
+@media (max-width:820px){
+  .shell{padding:10px 12px 28px}
+  .stage{grid-template-columns:minmax(0,1fr);gap:14px}
+  .sheet{max-width:100%}
+  .masthead{flex-wrap:wrap;gap:6px}
+  /* room for a thumb */
+  .btn{min-height:40px}
+  .tw{min-height:34px}
+}
+
+.keys__row{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  font-size:12px;color:var(--muted);margin:4px 0}
+.keys__key{font-family:var(--mono);font-size:10px;letter-spacing:.1em;padding:4px 9px;
+  border:1px solid var(--rule);border-radius:3px;background:var(--sheet);
+  color:var(--graphite);cursor:pointer;min-width:56px}
+.keys__key:hover{border-color:var(--graphite)}

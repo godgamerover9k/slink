@@ -14,20 +14,23 @@ async function go(){
   ck('the page has a place for per-puzzle bars', /id="per"/.test(page), true);
   ck('and warns before throwing a batch away',
      /have not been saved/.test(page), true);
+  ck('with a way to watch it work', /id="watch"/.test(page), true);
 
   await fetch(url+'start',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({rows:10,cols:10,count:3,difficulty:'tough'})});
-  let sawEach=false, sawPct=false, done=null;
+  let sawEach=false, sawPct=false, sawGrid=false, done=null;
   for(let i=0;i<120;i++){
     await wait(400);
     const s=await (await fetch(url+'status')).json();
     if((s.each||[]).length)sawEach=true;
     if((s.each||[]).some(w=>w.stage==='trim'&&w.pct>0&&w.pct<=100))sawPct=true;
+    if((s.each||[]).some(w=>w.grid&&w.grid.cells&&w.grid.cells.length===w.grid.R*w.grid.C))sawGrid=true;
     if(s.done){done=s;break;}
   }
   ck('progress is reported per puzzle', sawEach, true);
   ck('with a percentage while trimming', sawPct, true);
   ck('and it finishes', !!done, true);
+  ck('the clue grid is sent while it works', sawGrid, true);
   ck('nothing was written until asked',
      require('fs').existsSync('/tmp/gt.json'), false);
  }catch(e){console.log('ERROR',e.message);fail++;}
