@@ -48,8 +48,9 @@
 
       <section class="block" id="trialBlock">
         <h3 class="block__title">Branches <span id="trialTag"></span></h3>
-        <div class="tree" id="trialTree"></div>
-        <p class="trial__copy" id="trialCopy">Branch off to test a guess.</p>
+
+        <!-- the buttons stay put: a growing list of branches below them must
+             not push what you are about to press further down the panel -->
         <p class="toolgroup">Start</p>
         <div class="controls">
           <button class="btn btn--wide" id="trialStart">Branch from here</button>
@@ -70,6 +71,11 @@
         </div>
 
         <label class="tgl" style="margin-top:12px"><input type="checkbox" id="optChain"><span class="tgl__box"></span>Start another branch after settling one</label>
+
+        <p class="trial__copy" id="trialCopy">Branch off to test a guess.</p>
+
+        <p class="toolgroup">The tree</p>
+        <div class="tree" id="trialTree"></div>
       </section>
 
       <section class="block">
@@ -266,7 +272,7 @@
     </div>
 
     <p class="err" id="err"></p>
-    <p class="note">Anything drawn on a puzzle is visible to everyone who has its code, including your name in the player list.</p>
+    <p class="note" id="shareNote">Anything drawn on a puzzle is visible to everyone who has its code, including your name in the player list.</p>
   </div>
 </div>
 

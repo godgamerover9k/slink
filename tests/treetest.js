@@ -40,10 +40,17 @@ const rows=()=>[...window.document.querySelectorAll('.tw__label')].map(e=>e.text
  const twist=window.document.querySelector('.tw__twist');
  ck('a marker shows there is something inside', !!twist, true);
  ck('and says how many', /1/.test(twist.textContent), true);
- twist.onclick({stopPropagation(){}});
- ck('opening it reveals the offshoot', rows().length, 3);
- window.document.querySelector('.tw__twist').onclick({stopPropagation(){}});
- ck('and it folds away again', rows().length, 2);
+ // clicking the branch itself opens it; the marker is only a sign
+ const rowFor=id=>[...window.document.querySelectorAll('.tw')]
+   .find(r=>r.dataset.branch===id);
+ rowFor(parent).onclick();
+ ev('render()');
+ ck('clicking the branch reveals the offshoot', rows().length, 3);
+ rowFor(parent).onclick();
+ ev('render()');
+ ck('clicking it again folds it away', rows().length, 2);
+ ck('the marker itself is not the control',
+    ev(`getComputedStyle(document.querySelector('.tw__twist')).pointerEvents`), 'none');
 
  console.log('\n--- choosing a branch opens what is under it ---');
  ev('openBranches.clear(); switchBranch(null); render()');

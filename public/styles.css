@@ -139,7 +139,7 @@ body.trialing #board{cursor:cell}
 /* The list grows to fit what is in it. Capping it put a scrollbar inside a
    panel that had room to spare; if the tree gets long the page scrolls, which
    is what a long list should do. */
-.tree{display:flex;flex-direction:column;gap:1px;margin-bottom:10px;overflow:visible}
+.tree{display:flex;flex-direction:column;gap:1px;margin:0;overflow:visible}
 .tw{display:flex;align-items:center;gap:6px;padding:4px 6px;width:100%;cursor:pointer;
   border:1px solid transparent;border-radius:2px;background:none;text-align:left;
   font-family:var(--mono);font-size:11px;color:var(--muted)}

@@ -34,6 +34,20 @@ const ck=(n,a,b)=>{const ok=JSON.stringify(a)===JSON.stringify(b);ok?pass++:fail
     ev(`getComputedStyle(document.getElementById('trialTree')).overflow`), 'visible');
  ck('and nothing caps its height',
     ev(`getComputedStyle(document.getElementById('trialTree')).maxHeight`), 'none');
+ // the buttons must sit above the list, so they never shift as it grows
+ const order=ev(`(()=>{
+   const block=document.getElementById('trialTree').closest('.block');
+   const kids=[...block.children];
+   return JSON.stringify([kids.indexOf(document.getElementById('trialStart').closest('.controls')),
+                          kids.indexOf(document.getElementById('trialTree'))]);
+ })()`);
+ const [startAt,treeAt]=JSON.parse(order);
+ ck('the start button comes before the tree', startAt < treeAt && startAt >= 0, true);
+ ck('so does the settle group',
+    ev(`(()=>{const block=document.getElementById('trialTree').closest('.block');
+      const kids=[...block.children];
+      return kids.indexOf(document.getElementById('trialSettle')) <
+             kids.indexOf(document.getElementById('trialTree'));})()`), true);
  void tree;
  console.log(`\n${pass} passed, ${fail} failed`);
  process.exit(fail?1:0);

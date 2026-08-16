@@ -188,9 +188,19 @@ function openSetup(keepRoom) {
   keepRoomOnClose = !!keepRoom;
   veil.hidden = false;
   document.getElementById("cardTitle").textContent = keepRoom ? "New puzzle for this room" : greeting();
+  /* What this is depends on how it is being used: promising shared pens to
+     someone who has chosen to play alone is just wrong. */
+  const offlineChosen = !!(document.getElementById("optOffline") || {}).checked || store.offline;
+  const note = document.getElementById("shareNote");
+  if (note)
+    note.textContent = offlineChosen
+      ? "Nothing leaves this browser while you are playing on your own."
+      : "Anything drawn on a puzzle is visible to everyone who has its code, including your name in the player list.";
   document.getElementById("cardSub").textContent = keepRoom
     ? "Everyone on " + room.code + " gets the new puzzle as soon as it's ready."
-    : "One puzzle, one board, everybody's pens at once. Open a puzzle and share the code, or join one that's already running.";
+    : offlineChosen
+      ? "A puzzle of your own. Nothing is shared, and your progress stays in this browser."
+      : "One puzzle, one board, everybody's pens at once. Open a puzzle and share the code, or join one that's already running.";
   document.querySelector(".tabs").hidden = !!keepRoom;
   document.getElementById("paneJoin").hidden = true;
   document.getElementById("paneNew").hidden = false;
@@ -265,7 +275,12 @@ async function openPuzzle(puz) {
   lastWrite = Date.now();
   updateIndex();
   closeSetup();
-  if (!keepRoomOnClose) toast("Puzzle " + code + " is open — share the code");
+  if (!keepRoomOnClose)
+    toast(
+      store.solo
+        ? "Puzzle " + code + " is open — just for you"
+        : "Puzzle " + code + " is open — share the code",
+    );
 }
 
 /* ---- importing packs built by slink-gen ---- */
@@ -458,6 +473,11 @@ document.getElementById("packIn").onchange = async edge => {
     errEl.textContent = err.message || "Couldn't read that pack.";
   }
 };
+
+(function watchOffline() {
+  const box = document.getElementById("optOffline");
+  if (box) box.onchange = () => openSetup(false);
+})();
 
 document.getElementById("createBtn").onclick = async () => {
   const btn = document.getElementById("createBtn");

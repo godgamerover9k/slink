@@ -844,17 +844,23 @@ function renderTree() {
       twist.className = "tw__twist";
       twist.textContent = (kids.shut ? "▸ " : "▾ ") + kids.count;
       twist.title = "";      // the count on the marker already says it
-      twist.onclick = ev => {
-        ev.stopPropagation();
-        if (openBranches.has(id)) openBranches.delete(id);
-        else openBranches.add(id);
-        renderTrial();
-      };
+      /* The marker only says what is there. Opening and closing is done by
+         clicking the branch itself, which is what people reach for. */
+      twist.style.pointerEvents = "none";
       btn.appendChild(twist);
     }
     btn.title = "";      // the row already says what it is
     if (flag && flag.kind === "clash") btn.classList.add("tw--clash");
-    btn.onclick = () => switchBranch(id);
+    btn.onclick = () => {
+      // already here? then the click is about its offshoots
+      if (id != null && trial && trial.id === id && branches.get(id)) {
+        if (openBranches.has(id)) openBranches.delete(id);
+        else openBranches.add(id);
+        renderTrial();
+        return;
+      }
+      switchBranch(id);
+    };
     if (id != null)
       btn.ondblclick = ev => {
         ev.preventDefault();

@@ -29,6 +29,14 @@ const ck=(n,a,b)=>{const ok=JSON.stringify(a)===JSON.stringify(b);ok?pass++:fail
 
  ck('sharing is on by default', A.$('optOffline').checked, false);
  A.$('optOffline').checked=true;
+ A.$('optOffline').dispatchEvent(new A.w.Event('change',{bubbles:true}));
+ await wait(60);
+ ck('the wording stops promising other people',
+    /share the code/.test(A.$('cardSub').textContent), false);
+ ck('and says what offline means',
+    /Nothing is shared|puzzle of your own/.test(A.$('cardSub').textContent), true);
+ ck('the note at the bottom agrees',
+    /leaves this browser/.test(A.$('shareNote').textContent), true);
  A.$('rowsIn').value='5';A.$('colsIn').value='5';A.$('nameIn').value='solo';
  A.$('createBtn').click();
  for(let i=0;i<300&&!A.ev('room');i++)await wait(100);
@@ -39,6 +47,10 @@ const ck=(n,a,b)=>{const ok=JSON.stringify(a)===JSON.stringify(b);ok?pass++:fail
  const roomKeys=[...shared.keys()].filter(k=>k.startsWith('sl:room:'));
  ck('nothing was written to shared storage', roomKeys.length, 0);
  ck('no code is shown', A.ev(`document.getElementById('roomchip').hidden`), true);
+ ck('and nothing told you to share one',
+    /share the code/.test(A.$('toast').textContent), false);
+ ck('it says the puzzle is yours',
+    /just for you/.test(A.$('toast').textContent), true);
 
  console.log('\n--- it still plays ---');
  const e=A.ev('engine.H(1,1)');
