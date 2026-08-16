@@ -85,8 +85,10 @@ function homeRedirectTarget(here) {
     errEl.textContent = why || "That puzzle isn't there any more.";
     return;
   }
-  await resumeLast();
+  /* Opening the site plainly should show the hello screen, not drop you back
+     into whatever you were last doing. The way back is offered there. */
   openSetup(false);
+  await offerLast();
   if (matchMedia("(pointer:fine)").matches) document.getElementById("nameIn").focus();
 })();
 

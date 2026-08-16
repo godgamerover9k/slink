@@ -641,6 +641,32 @@ function soloNotice() {
 
 /* remember the sheet you were on and pick it back up next time */
 const LAST_KEY = "sl:last";
+/* Offers the puzzle you were last on, as a choice rather than a redirection.
+   Nothing happens until it is pressed. */
+async function offerLast() {
+  const slot = document.getElementById("lastRoom");
+  if (!slot) return false;
+  slot.hidden = true;
+  try {
+    const res = await store.get(LAST_KEY, false);
+    if (!res) return false;
+    const saved = JSON.parse(res.value);
+    if (!saved || !saved.room || !saved.room.code) return false;
+    slot.hidden = false;
+    slot.textContent = "Back to " + saved.room.code;
+    slot.onclick = async () => {
+      slot.disabled = true;
+      if (!(await resumeLast())) {
+        slot.disabled = false;
+        slot.textContent = "That puzzle has gone";
+      }
+    };
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 async function resumeLast() {
   try {
     const res = await store.get(LAST_KEY, false);

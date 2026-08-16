@@ -200,7 +200,7 @@
     <p class="sub" id="cardSub">One puzzle, one board, everybody's pens at once. Open a puzzle and share the code, or join one that's already running.</p>
 
     <div class="field">
-      <label for="nameIn">Your name on the rack</label>
+      <label for="nameIn">Your name</label>
       <input class="input" id="nameIn" maxlength="14" placeholder="e.g. mara" autocomplete="off">
     </div>
 
@@ -232,6 +232,7 @@
         <p class="dims__hint" id="offlineHint">Nothing is shared and no code is given out. Your progress stays in this browser.</p>
       </div>
       <button class="btn btn--solid btn--wide" id="createBtn" style="width:100%">Generate the puzzle</button>
+      <button class="btn btn--wide" id="lastRoom" style="width:100%;margin-top:8px" hidden></button>
       <div class="imp">
         <input type="file" id="packIn" accept=".json,application/json" hidden>
         <button class="btn btn--wide" id="importBtn" style="width:100%">Import a pack…</button>

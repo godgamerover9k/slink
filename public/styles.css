@@ -136,7 +136,10 @@ body.trialing .sheet{border-style:dashed;border-color:var(--graphite)}
 body.trialing #board{cursor:cell}
 .prem{fill:none;stroke:var(--graphite);stroke-width:1.7;opacity:.9}
 .prem--anc{stroke:var(--muted);stroke-width:1.2;stroke-dasharray:3 2.5;opacity:.55}
-.tree{display:flex;flex-direction:column;gap:1px;margin-bottom:10px;max-height:172px;overflow:auto}
+/* The list grows to fit what is in it. Capping it put a scrollbar inside a
+   panel that had room to spare; if the tree gets long the page scrolls, which
+   is what a long list should do. */
+.tree{display:flex;flex-direction:column;gap:1px;margin-bottom:10px;overflow:visible}
 .tw{display:flex;align-items:center;gap:6px;padding:4px 6px;width:100%;cursor:pointer;
   border:1px solid transparent;border-radius:2px;background:none;text-align:left;
   font-family:var(--mono);font-size:11px;color:var(--muted)}
@@ -191,13 +194,20 @@ body.trialing #board{cursor:cell}
 .legend p{margin:0 0 7px}
 
 /* ---------- setup screen ---------- */
-.veil{position:fixed;inset:0;background:color-mix(in srgb,var(--paper) 88%,transparent);
-  backdrop-filter:blur(2px);display:grid;place-items:center;padding:20px;z-index:20;overflow:auto}
+/* the opening screen stands on its own: the board behind it is not context,
+   it is a distraction */
+/* the opening screen stands on its own: the board behind it is not context,
+   it is a distraction */
+.veil{position:fixed;inset:0;background:var(--paper);display:grid;place-items:center;padding:20px;z-index:20;overflow:auto}
 .card{width:min(460px,100%);background:var(--sheet);border:1px solid var(--rule);border-radius:3px;
   box-shadow:var(--shadow);padding:24px}
 .card h2{font-size:20px;margin:0 0 4px;letter-spacing:-.01em}
 .card .sub{font-size:13px;color:var(--muted);margin:0 0 20px;line-height:1.5}
 .field{margin-bottom:16px}
+/* a toggle inside a field is still a row: the block rule below would push its
+   words under the box */
+.field > label.tgl{display:flex;text-transform:none;letter-spacing:0;font-size:13px;
+  font-family:inherit;color:var(--graphite)}
 .field > label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.16em;
   text-transform:uppercase;color:var(--muted);margin-bottom:7px}
 .input{width:100%;padding:9px 11px;border:1px solid var(--rule);border-radius:2px;background:var(--paper);
