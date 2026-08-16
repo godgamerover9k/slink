@@ -345,6 +345,10 @@ function render() {
       if (gSegDrawn && seg.parentNode !== gSegDrawn) gSegDrawn.appendChild(seg);
     } else {
       seg.classList.remove("on");
+      /* Keep an undecided line faint even while it is fading out. It used to
+         hold on to the black stroke from when it was drawn, which flashed
+         across the board when the absent-lines view was switched off. */
+      seg.setAttribute("stroke", "var(--ghost)");
       if (gSegGhost && seg.parentNode !== gSegGhost) gSegGhost.appendChild(seg);
     }
     xEls[i].classList.toggle("on", state === "2");

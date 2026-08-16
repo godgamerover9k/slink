@@ -230,6 +230,7 @@ body.trialing #board{cursor:cell}
 .clue.done{fill:var(--x-mark)}
 .clue.over{fill:var(--pen-2)}
 .seg{stroke-linecap:round;stroke-width:5;opacity:0;transition:opacity .09s}
+body.noFade .seg,body.noFade .xm{transition:none}
 .seg.on{opacity:1}
 /* An alternative reading of the same board: a drawn line is bold, an
    undecided one is a thin ghost, and a ruled-out one simply is not there.

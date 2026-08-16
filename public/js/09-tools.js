@@ -259,10 +259,14 @@ document.getElementById("optPremise").onchange = edge => {
   showPremises = edge.target.checked;
   render();
 };
-document.getElementById("optWeight").onchange = edge => {
-  weighted = edge.target.checked;
+document.getElementById("optWeight").onchange = ev => {
+  weighted = ev.target.checked;
+  /* Nothing should fade while the whole board changes meaning: the crossfade
+     showed every undecided line for a tenth of a second. */
+  document.body.classList.add("noFade");
   document.body.classList.toggle("weighted", weighted);
   render();
+  setTimeout(() => document.body.classList.remove("noFade"), 60);
 };
 
 document.getElementById("newsheet").onclick = () => {

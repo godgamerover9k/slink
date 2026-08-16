@@ -528,8 +528,25 @@ async function joinRoom(codeRaw) {
 
 /* A link that opens straight into a puzzle. It carries the room server and key
    too when they are set, so one link is all anyone needs. */
+/* The address people should be given, whatever address this page was opened
+   at. Anyone still on the old host gets a link to the new one. */
+const HOME = "https://weslither.link";
+const OLD_HOSTS = /(^|\.)onrender\.com$/i;
+
+function canonicalBase() {
+  try {
+    if (OLD_HOSTS.test(location.hostname)) return HOME;
+    // a page opened from a file, or with no real origin, has nothing to build
+    // a link from; fall back to wherever it actually is
+    if (!/^https?:$/.test(location.protocol)) return location.href;
+    return location.origin + location.pathname.replace(/index\.html$/, "");
+  } catch (e) {
+    return location.href;
+  }
+}
+
 function roomLink(code) {
-  const url = new URL(location.href);
+  const url = new URL(canonicalBase(), location.href);
   url.search = "";
   url.hash = "";
   url.searchParams.set("room", code);

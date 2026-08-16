@@ -368,14 +368,23 @@ function adopt(remote) {
   ensureTree(room);
   ensureTree(remote);
   let treeChanged = false;
+  let treeNeedsResend = false;
   for (const id in remote.tree) {
     const rr = remote.tree[id],
       mine = room.tree[id];
-    if (!mine || (rr.at || 0) > (mine.at || 0)) {
-      room.tree[id] = rr;
+    /* Mark by mark, not record by record: two people on one branch each write
+       the whole thing, so replacing wholesale threw the other's work away. */
+    const merged = mergeBranchRecord(mine, rr);
+    if (JSON.stringify(merged) !== JSON.stringify(mine)) {
+      room.tree[id] = merged;
       treeChanged = true;
     }
+    /* Two people writing at once means one read the room before the other
+       wrote, so a change can be overwritten wholesale. If what we hold is
+       newer than what came back, send it again rather than let it be lost. */
+    if (JSON.stringify(merged) !== JSON.stringify(rr)) treeNeedsResend = true;
   }
+  if (treeNeedsResend) flushSoon();
   if (treeChanged) {
     const wasOn = trial ? trial.id : null;
     syncTreeFromRoom();
@@ -465,7 +474,7 @@ async function flush() {
     for (const id in room.tree) {
       const mineRec = room.tree[id],
         theirs = base.tree[id];
-      if (!theirs || (mineRec.at || 0) > (theirs.at || 0)) base.tree[id] = mineRec;
+      base.tree[id] = mergeBranchRecord(theirs, mineRec);
     }
     touchMe(base);
     if (room.solvedAt && !base.solvedAt) base.solvedAt = room.solvedAt;
@@ -484,7 +493,7 @@ async function flush() {
     for (const id in localTree) {
       const mineRec = localTree[id],
         theirs = room.tree[id];
-      if (!theirs || (mineRec.at || 0) > (theirs.at || 0)) room.tree[id] = mineRec;
+      room.tree[id] = mergeBranchRecord(theirs, mineRec);
     }
     for (const op of pending) applyOp(room, op);
     /* Gate on the branch open *now*, not the one open when this write began:

@@ -17,6 +17,24 @@ function placeBranchPanel() {
 }
 window.addEventListener("resize", placeBranchPanel);
 
+/* Anyone arriving at the old address is sent to the new one, keeping whatever
+   puzzle or key was on the link. Kept separate from the act of going there so
+   the decision can be checked without a browser navigating. */
+function homeRedirectTarget(here) {
+  try {
+    const at = new URL(here || location.href);
+    if (!/(^|\.)onrender\.com$/i.test(at.hostname)) return null;
+    return new URL(at.pathname + at.search + at.hash, HOME).toString();
+  } catch (e) {
+    return null;
+  }
+}
+
+(function moveToHome() {
+  const to = homeRedirectTarget();
+  if (to) location.replace(to);
+})();
+
 (async function boot() {
   setDims(10, 10);
   buildChips();

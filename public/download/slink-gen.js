@@ -1735,7 +1735,8 @@ function refreshHint(){
   const n=+$('rows').value*+$('cols').value;
   let t=n+' cells each · '+cores+' core'+(cores===1?'':'s');
   const side=Math.max(+$('rows').value,+$('cols').value);
-  if(side>18)t+=' · too big: uniqueness can only be proved up to about 18x18';
+  // that ceiling was real before the SAT solver went in; 30x30 builds now
+  if(side>40)t+=' · very large, this will take a while';
   else if($('diff').value==='maximal'&&n>256)t+=' · a maximal sweep this big runs for minutes';
   $('hint').textContent=t;
 }

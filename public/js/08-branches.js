@@ -9,7 +9,6 @@ const trialEls = {
   tree: document.getElementById("trialTree"),
   copy: document.getElementById("trialCopy"),
   start: document.getElementById("trialStart"),
-  test: document.getElementById("trialTest"),
   reject: document.getElementById("trialReject"),
   accept: document.getElementById("trialAccept"),
   rename: document.getElementById("trialRename"),
@@ -67,9 +66,13 @@ function treeRec(node) {
     by: node.by,
     byId: node.byId,
     at: node.at,
+    mt: node.mt || {},
+    mo: node.mo || {},
     made: node.made || node.at,
     ord: node.ord,
+    ordAt: node.ordAt || 0,
     name: node.name || "",
+    nameAt: node.nameAt || 0,
     dead: !!node.dead,
   };
 }
@@ -106,6 +109,10 @@ function syncTreeFromRoom() {
       byId: r.byId,
       at: r.at,
       ord: r.ord,
+      ordAt: r.ordAt || 0,
+      nameAt: r.nameAt || 0,
+      mt: r.mt || {},
+      mo: r.mo || {},
       made: r.made || r.at,
       name: r.name || "",
       undo: [],
@@ -183,8 +190,13 @@ function deriveBoard(node) {
   }
   const eo = base.eo ? base.eo.slice() : room.eo.slice();
   for (const n of chainOf(node)) {
-    const own = n.byId ? penSlot(n.byId) : -1;
-    for (const i in (n.marks || {}).e || {}) if (n.marks.e[i] === "1") eo[+i] = own;
+    /* A line belongs to whoever drew it, not to whoever started the branch —
+       using the branch owner repainted other people's marks a moment after
+       they made them. Older branches have no per-mark owner, so fall back. */
+    const fallback = n.byId ? penSlot(n.byId) : -1;
+    const owners = (n.mo || {}).e || {};
+    for (const i in (n.marks || {}).e || {})
+      if (n.marks.e[i] === "1") eo[+i] = owners[i] !== undefined ? owners[i] : fallback;
   }
   return { edges, cells, diag, rels, eo };
 }
@@ -192,8 +204,64 @@ function recordMark(node, kind, idx, val) {
   const key = MARK_KEY[kind];
   if (!node.marks) node.marks = { e: {}, k: {}, d: {} };
   if (!node.marks[key]) node.marks[key] = {};
+  if (!node.mt) node.mt = {};
+  if (!node.mt[key]) node.mt[key] = {};
+  if (!node.mo) node.mo = {};
+  if (!node.mo[key]) node.mo[key] = {};
   node.marks[key][idx] = val;
+  node.mt[key][idx] = now();              // when, so writes can be merged
+  node.mo[key][idx] = penSlot(me.id);     // who, so it keeps their colour
   pushTree(node);
+}
+
+/* Merge one branch record into another, mark by mark. Whole-record
+   last-write-wins threw away whatever the other person had just done. */
+function mergeBranchRecord(into, from) {
+  if (!from) return into;
+  if (!into) return { ...from };
+  const out = { ...into };
+  // the branch's own details follow the newer record
+  if ((from.at || 0) > (into.at || 0)) {
+    out.premise = from.premise;
+    out.parent = from.parent;
+    out.dead = from.dead;
+    out.at = from.at;
+  }
+  /* Order and name are changed on their own, so they carry their own times.
+     Riding on the record's timestamp meant a mark written a moment later put
+     the branch back where it was. */
+  if ((from.ordAt || 0) > (into.ordAt || 0)) {
+    out.ord = from.ord;
+    out.ordAt = from.ordAt;
+  }
+  if ((from.nameAt || 0) > (into.nameAt || 0)) {
+    out.name = from.name;
+    out.nameAt = from.nameAt;
+  }
+  out.made = Math.min(into.made || into.at || 0, from.made || from.at || 0) || out.made;
+  out.marks = { ...(into.marks || {}) };
+  out.mt = { ...(into.mt || {}) };
+  out.mo = { ...(into.mo || {}) };
+  for (const kind of ["e", "k", "d", "r"]) {
+    const mine = { ...((into.marks || {})[kind] || {}) };
+    const mineT = { ...((into.mt || {})[kind] || {}) };
+    const mineO = { ...((into.mo || {})[kind] || {}) };
+    const theirs = (from.marks || {})[kind] || {};
+    const theirsT = (from.mt || {})[kind] || {};
+    const theirsO = (from.mo || {})[kind] || {};
+    for (const idx in theirs) {
+      const tTheirs = theirsT[idx] || from.at || 0;
+      const tMine = mineT[idx] === undefined ? -1 : mineT[idx];
+      if (idx in mine && tMine >= tTheirs) continue;
+      mine[idx] = theirs[idx];
+      mineT[idx] = tTheirs;
+      if (theirsO[idx] !== undefined) mineO[idx] = theirsO[idx];
+    }
+    out.marks[kind] = mine;
+    out.mt[kind] = mineT;
+    out.mo[kind] = mineO;
+  }
+  return out;
 }
 
 /* Branches derive from their parent, so a mark added above is inherited
@@ -379,6 +447,7 @@ function renameBranch(node) {
   );
   if (given === null) return;
   node.name = given.trim().slice(0, 40);
+  node.nameAt = now();
   pushTree(node);
   render();
 }
@@ -653,6 +722,7 @@ function reorderBranch(dragId, dropId, after) {
     const node = branches.get(id);
     if (node && node.ord !== i) {
       node.ord = i;
+      node.ordAt = now();      // so a mark written later cannot undo the move
       pushTree(node);
     }
   });
@@ -866,38 +936,6 @@ trialEls.accept.onclick = acceptBranch;
 trialEls.rename.onclick = () => renameBranch(trial);
 trialEls.reject.onclick = () => rejectBranch(true);
 trialEls.drop.onclick = () => rejectBranch(false);
-
-trialEls.test.onclick = () => {
-  if (!room) return;
-  const btn = trialEls.test,
-    label = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = "Working…";
-  setTimeout(() => {
-    const quick = findTrouble();
-    if (quick.msgs.length) {
-      toast(quick.msgs[0][0].toUpperCase() + quick.msgs[0].slice(1));
-      btn.disabled = false;
-      btn.textContent = label;
-      return;
-    }
-    const S2 = Solver(engine),
-      preset = new Uint8Array(engine.E);
-    for (let i = 0; i < engine.E; i++)
-      preset[i] = room.edges[i] === "1" ? ON : room.edges[i] === "2" ? OFF : UNK;
-    const res = S2.solve(Int8Array.from(room.clues), 1, 600000, preset);
-    if (res.count > 0) toast("No contradiction — these marks still fit a real solution");
-    else if (res.aborted) toast("Couldn't settle this one either way");
-    else
-      toast(
-        trial
-          ? "Dead end — the premise can be ruled out"
-          : "Dead end — no solution fits these marks",
-      );
-    btn.disabled = false;
-    btn.textContent = label;
-  }, 20);
-};
 
 /* Replacing the puzzle throws away everyone's work, so it belongs to whoever
    opened the sheet. Rooms made before this existed have no owner recorded and
