@@ -547,6 +547,16 @@ function queueOp(edge, val) {
       toast("The branch above already decided this. A branch can only add to it.");
       return false;
     }
+    /* Undoing the assumption itself, with nothing else on the branch:
+       allowed, and it unmakes the pair rather than stranding the twin. */
+    if (
+      trial.premise &&
+      trial.premise.kind === "edge" &&
+      trial.premise.idx === edge &&
+      value !== trial.premise.to &&
+      !undoesPremise("edge", edge, value)
+    )
+      unmakePremise(trial);
     if (undoesPremise("edge", edge, value)) {
       toast("That is this branch's assumption. Clear the rest of the branch first.");
       return false;
@@ -629,6 +639,16 @@ function queueCell(cell, val) {
       toast("The branch above already decided this. A branch can only add to it.");
       return false;
     }
+    /* Undoing the assumption itself, with nothing else on the branch:
+       allowed, and it unmakes the pair rather than stranding the twin. */
+    if (
+      trial.premise &&
+      trial.premise.kind === "cell" &&
+      trial.premise.idx === cell &&
+      value !== trial.premise.to &&
+      !undoesPremise("cell", cell, value)
+    )
+      unmakePremise(trial);
     if (undoesPremise("cell", cell, value)) {
       toast("That is this branch's assumption. Clear the rest of the branch first.");
       return false;

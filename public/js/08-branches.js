@@ -614,6 +614,22 @@ function makeTwin(node) {
   return twin;
 }
 
+/* Taking the assumption back unmakes the fork: without it there is nothing
+   for the twin to be the opposite of, and leaving it behind strands a branch
+   guessing at something nobody is testing. */
+function unmakePremise(node) {
+  if (!node || !node.premise) return;
+  const other = twinOf(node);
+  node.premise = null;
+  node.twin = null;
+  pushTree(node);
+  if (other && branches.get(other.id)) {
+    other.twin = null;
+    dropSubtree(other);
+  }
+  renderTrial();
+}
+
 /* Both halves of a fork go together. */
 function twinOf(node) {
   return node && node.twin ? branches.get(node.twin) || null : null;
@@ -1036,7 +1052,7 @@ function openPath() {
 function renderTree() {
   const box = trialEls.tree;
   box.innerHTML = "";
-  const row = (label, depth, id, flag, premise) => {
+  const row = (label, depth, id, flag, premise, twinId) => {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "tw";
@@ -1051,6 +1067,15 @@ function renderTree() {
       flagEl.className = "tw__flag " + flag.kind;
     }
     btn.title = "";      // the row already says what it is
+    /* The two halves of a fork are marked as a pair, and joined down the side,
+       so it is plain they are one question asked both ways. */
+    if (twinId && branches.get(twinId)) {
+      btn.classList.add("tw--paired");
+      const pair = document.createElement("span");
+      pair.className = "tw__pair";
+      pair.textContent = "either way";
+      btn.appendChild(pair);
+    }
     if (flag && flag.why) {
       const why = document.createElement("span");
       why.className = "tw__why";
@@ -1157,7 +1182,7 @@ function renderTree() {
     ids.forEach(id => {
       const node = branches.get(id);
       if (!node) return;
-      row(branchLabel(node), depth, id, flagFor(node), premiseLabel(node.premise));
+      row(branchLabel(node), depth, id, flagFor(node), premiseLabel(node.premise), node.twin);
       if (path.has(id)) walk(node.children, depth + 1);
     });
   const path = openPath();

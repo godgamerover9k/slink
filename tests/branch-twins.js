@@ -45,7 +45,34 @@ const ck=(n,a,b)=>{const ok=JSON.stringify(a)===JSON.stringify(b);ok?pass++:fail
  ev(`switchBranch(${q(A)})`);
  ck('and the first still shows its own', ev(`room.edges[${X}]`), '1');
 
+ console.log('\n--- you can see they are a pair ---');
+ ev('switchBranch(null)'); ev('render()');
+ const paired=[...window.document.querySelectorAll('.tw--paired')];
+ ck('both rows are marked as a pair', paired.length, 2);
+ ck('and say so in words',
+    paired.every(r=>/either way/i.test(r.textContent)), true);
+
+ console.log('\n--- taking the assumption back unmakes the pair ---');
+ ev(`switchBranch(${q(A)})`);
+ ev(`setEdgeUser(${X},"0",false)`);
+ await wait(80);
+ ck('the assumption is gone', ev('trial.premise'), null);
+ ck('the twin went with it', ev(`branches.has(${q(B)})`), false);
+ ck('no twin is left pointing anywhere', ev('trial.twin'), null);
+ ck('the branch itself is still here', ev(`branches.has(${q(A)})`), true);
+ ev(`setEdgeUser(${X},"1",false)`);
+ await wait(80);
+ ck('guessing again makes a fresh pair', !!ev('trial.twin'), true);
+ ev(`switchBranch(${q(A)})`);
+ $('trialDrop').click();
+ await wait(100);
+
  console.log('\n--- the same square cannot be guessed twice ---');
+ ev('switchBranch(null)');
+ $('trialStart').click();
+ ev(`setEdgeUser(${X},"1",false)`);
+ await wait(80);
+ const P=ev('trial.id');
  ev('switchBranch(null)');
  $('trialStart').click();
  ev(`setEdgeUser(${X},"1",false)`);
@@ -61,13 +88,43 @@ const ck=(n,a,b)=>{const ok=JSON.stringify(a)===JSON.stringify(b);ok?pass++:fail
  ck('a different square is fine', ev('trial.premise && trial.premise.idx'), Y);
  const C=ev('trial.id');
 
+ console.log('\n--- and the same by pressing undo ---');
+ ev('switchBranch(null)');
+ $('trialStart').click();
+ const U=ev('engine.H(4,2)');
+ ev(`setEdgeUser(${U},"1",false)`);
+ await wait(80);
+ const undoTwin=ev('trial.twin');
+ ck('a pair was made', !!undoTwin, true);
+ $('undo').click();
+ await wait(120);
+ ck('undo clears the assumption', ev('trial && trial.premise'), null);
+ ck('and does not leave the twin behind', ev(`branches.has(${q(undoTwin)})`), false);
+ ck('nothing is left claiming a twin', ev('trial && trial.twin'), null);
+ $('trialDrop').click();
+ await wait(100);
+
  console.log('\n--- settling one settles both ---');
- ev(`switchBranch(${q(A)})`);
+ // a fresh pair, and an unrelated one to check nothing else is caught up in it
+ ev('switchBranch(null)');
+ $('trialStart').click();
+ ev(`setEdgeUser(${ev('engine.H(7,1)')},"1",false)`);
+ await wait(80);
+ const one=ev('trial.id'), oneTwin=ev('trial.twin');
+ ev('switchBranch(null)');
+ $('trialStart').click();
+ ev(`setEdgeUser(${ev('engine.V(3,6)')},"1",false)`);
+ await wait(80);
+ const other=ev('trial.id'), otherTwin=ev('trial.twin');
+
+ ev(`switchBranch(${q(one)})`);
  $('trialDrop').click();
  await wait(120);
- ck('the branch is gone', ev(`branches.has(${q(A)})`), false);
- ck('and so is its twin', ev(`branches.has(${q(B)})`), false);
- ck('the unrelated pair is untouched', ev(`branches.has(${q(C)})`), true);
+ ck('the branch is gone', ev(`branches.has(${q(one)})`), false);
+ ck('and so is its twin', ev(`branches.has(${q(oneTwin)})`), false);
+ ck('the unrelated pair is untouched',
+    [ev(`branches.has(${q(other)})`), ev(`branches.has(${q(otherTwin)})`)], [true,true]);
+
  console.log(`\n${pass} passed, ${fail} failed`);
  process.exit(fail?1:0);
 })();
