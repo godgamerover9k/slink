@@ -535,6 +535,13 @@ function queueOp(edge, val) {
     // goes into the branch, not the master
     const value = String(val);
     if (room.edges[edge] === value) return false;
+    if (!trial.premise) {
+      const taken = premiseTaken(trial.parent || null, "edge", edge, trial.id);
+      if (taken) {
+        toast("Another branch here already guesses at that square");
+        return false;
+      }
+    }
     const above = settledAbove("edge", edge);
     if (above) {
       toast("The branch above already decided this. A branch can only add to it.");
@@ -610,6 +617,13 @@ function queueCell(cell, val) {
   if (trial) {
     const value = String(val);
     if (room.cells[cell] === value) return false;
+    if (!trial.premise) {
+      const taken = premiseTaken(trial.parent || null, "cell", cell, trial.id);
+      if (taken) {
+        toast("Another branch here already guesses at that square");
+        return false;
+      }
+    }
     const above = settledAbove("cell", cell);
     if (above) {
       toast("The branch above already decided this. A branch can only add to it.");

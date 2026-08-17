@@ -39,7 +39,8 @@ const sync=async(A,B)=>{ await wait(700); await A.ev('poll()'); await B.ev('poll
  B.$('codeIn').value=code; B.$('joinBtn').click();
  for(let i=0;i<200&&!B.ev('room');i++)await wait(100);
  await sync(A,B);
- ck('bob sees all three branches', B.ev('branches.size'), 3);
+ // three guesses, each with its twin
+ ck('bob sees all three, with their twins', B.ev('branches.size'), 6);
 
  console.log('\n--- alice rearranges while bob draws on one ---');
  B.ev(`switchBranch(${q(ids[2])})`);
@@ -49,9 +50,11 @@ const sync=async(A,B)=>{ await wait(700); await A.ev('poll()'); await B.ev('poll
  await wait(900);
  await sync(A,B);
 
- ck('the new order took', JSON.parse(A.ev('JSON.stringify(trunk.children)')),
+ ck('the new order took',
+    JSON.parse(A.ev('JSON.stringify(trunk.children)')).filter(id=>ids.includes(id)),
     [ids[2],ids[0],ids[1]]);
- ck('and bob sees the same order', JSON.parse(B.ev('JSON.stringify(trunk.children)')),
+ ck('and bob sees the same order',
+    JSON.parse(B.ev('JSON.stringify(trunk.children)')).filter(id=>ids.includes(id)),
     [ids[2],ids[0],ids[1]]);
  ck("bob's mark survived the reorder", B.ev(`room.edges[${eb}]`), '1');
  A.ev(`switchBranch(${q(ids[2])})`);
@@ -66,7 +69,8 @@ const sync=async(A,B)=>{ await wait(700); await A.ev('poll()'); await B.ev('poll
  await sync(A,B);
  ck("alice's mark survived bob's reorder", A.ev(`room.edges[${ea}]`), '2');
  ck('both agree on the order',
-    A.ev('JSON.stringify(trunk.children)'), B.ev('JSON.stringify(trunk.children)'));
+    JSON.parse(A.ev('JSON.stringify(trunk.children)')).filter(id=>ids.includes(id)),
+    JSON.parse(B.ev('JSON.stringify(trunk.children)')).filter(id=>ids.includes(id)));
  console.log(`\n${pass} passed, ${fail} failed`);
  process.exit(fail?1:0);
 })();

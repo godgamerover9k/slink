@@ -388,7 +388,7 @@ function choosePen(near) {
 (function wireKeys() {
   const box = document.getElementById("keyBinds");
   if (!box) return;
-  const LABELS = { diagonal: "Diagonal", claim: "Claim" };
+  const LABELS = { diagonal: "Diagonal", claim: "Claim", branch: "Branch" };
   let listening = null;
 
   function draw() {

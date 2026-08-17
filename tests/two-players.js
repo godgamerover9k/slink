@@ -111,8 +111,8 @@ const q = v => JSON.stringify(v);
   B.$('trialStart').click(); B.ev(`setEdgeUser(${B.ev('engine.H(5,5)')},"2",false)`);
   await wait(900); await A.ev('poll()'); await wait(400);
   await B.ev('poll()'); await wait(400); await A.ev('poll()'); await wait(400);
-  ck('alice sees two branches', A.ev('branches.size'), 2);
-  ck('bob sees two branches', B.ev('branches.size'), 2);
+  ck('alice sees both guesses and their twins', A.ev('branches.size'), 4);
+  ck('bob sees them too', B.ev('branches.size'), 4);
   ck('alice is still on her own', A.ev('trial.by'), 'alice');
   ck('bob is still on his own', B.ev('trial.by'), 'bob');
 

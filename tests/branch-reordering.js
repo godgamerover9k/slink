@@ -35,7 +35,11 @@ const ck=(n,a,b)=>{const ok=JSON.stringify(a)===JSON.stringify(b);ok?pass++:fail
  A.$('trialStart').click();
  const kid=A.ev('trial.id');
  A.ev('switchBranch(null)'); A.ev('render()');
- const order=()=>A.ev('JSON.stringify(trunk.children)');
+ // each branch brings a twin, so compare only the ones this test made
+const order=()=>{
+  const all=JSON.parse(A.ev('JSON.stringify(trunk.children)'));
+  return JSON.stringify(all.filter(id=>ids.includes(id)));
+};
  ck('three branches on the sheet, in the order made', JSON.parse(order()), ids);
 
  console.log('\n--- dragging within the same parent ---');
@@ -65,7 +69,8 @@ const ck=(n,a,b)=>{const ok=JSON.stringify(a)===JSON.stringify(b);ok?pass++:fail
  B.$('codeIn').value=A.ev('room.code'); B.$('joinBtn').click();
  for(let i=0;i<200&&!B.ev('room');i++)await wait(100);
  await wait(500); B.ev('render()');
- ck('bob sees the same order', JSON.parse(B.ev('JSON.stringify(trunk.children)')), want);
+ ck('bob sees the same order',
+    JSON.parse(B.ev('JSON.stringify(trunk.children)')).filter(id=>ids.includes(id)), want);
 
  console.log('\n--- rows are draggable, the sheet row is not ---');
  const rows=[...A.w.document.querySelectorAll('.tw')];

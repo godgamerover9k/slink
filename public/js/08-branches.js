@@ -70,6 +70,7 @@ function treeRec(node) {
     mo: node.mo || {},
     made: node.made || node.at,
     ord: node.ord,
+    twin: node.twin || null,
     ordAt: node.ordAt || 0,
     name: node.name || "",
     nameAt: node.nameAt || 0,
@@ -109,6 +110,7 @@ function syncTreeFromRoom() {
       byId: r.byId,
       at: r.at,
       ord: r.ord,
+      twin: r.twin || null,
       ordAt: r.ordAt || 0,
       nameAt: r.nameAt || 0,
       mt: r.mt || {},
@@ -543,10 +545,78 @@ function undoesPremise(kind, idx, to) {
    assumes nothing — there is no claim in "this is no longer a line" — so a
    clearing is never taken as the premise, and the branch waits for a real
    one. */
+/* A guess and its opposite are one piece of reasoning, so making one makes
+   both. The twin is created the moment the first mark decides what this
+   branch is assuming, and from then on the two are settled together. */
 function notePremise(kind, idx, from, to) {
   if (!trial || trial.premise || from === to) return;
   if (to === "0") return;
   trial.premise = { kind, idx, from, to };
+  /* Built after this mark has finished being written. Making it here, in the
+     middle of the write, left the branch's own premise cleared. */
+  const mine = trial;
+  setTimeout(() => {
+    if (branches.get(mine.id)) {
+      pushTree(mine);
+      makeTwin(mine);
+    }
+  }, 0);
+}
+
+/* Whether this square is already spoken for by a branch under the same
+   parent — either way round. Two branches guessing at the same square would
+   be two names for the same fork. */
+function premiseTaken(parentId, kind, idx, ignoreId) {
+  const siblings = (parentId ? branches.get(parentId)?.children : trunk.children) || [];
+  for (const id of siblings) {
+    if (id === ignoreId) continue;
+    const node = branches.get(id);
+    const p = node && node.premise;
+    if (p && p.kind === kind && p.idx === idx) return node;
+  }
+  return null;
+}
+
+function makeTwin(node) {
+  if (!node || !node.premise || node.twin) return null;
+  const p = node.premise;
+  const other = negate(p);
+  if (other === "0" || other === p.to) return null;
+
+  const twin = {
+    id: newBranchId(),
+    parent: node.parent || null,
+    children: [],
+    premise: { kind: p.kind, idx: p.idx, from: p.from, to: other },
+    marks: { e: {}, k: {}, d: {} },
+    mt: {},
+    mo: {},
+    by: me ? me.name : "?",
+    byId: me ? me.id : null,
+    at: now(),
+    made: now(),
+    twin: node.id,
+    undo: [],
+    redo: [],
+  };
+  // the twin's own assumption, recorded the same way any mark would be
+  const key = MARK_KEY[p.kind];
+  twin.marks[key][p.idx] = other;
+  twin.mt[key] = { [p.idx]: now() };
+  twin.mo[key] = { [p.idx]: penSlot(me.id) };
+
+  node.twin = twin.id;
+  branches.set(twin.id, twin);
+  (node.parent ? branches.get(node.parent) : trunk).children.push(twin.id);
+  pushTree(twin);
+  pushTree(node);
+  renderTrial();
+  return twin;
+}
+
+/* Both halves of a fork go together. */
+function twinOf(node) {
+  return node && node.twin ? branches.get(node.twin) || null : null;
 }
 
 function switchBranch(id) {
@@ -593,6 +663,17 @@ function createBranch() {
   toast(parent ? "Branched off " + premiseLabel(parent.premise) : "New branch off the puzzle");
 }
 
+/* Settling one half of a fork settles the other: the pair is one question,
+   and leaving half of it behind would leave a guess nobody is testing. */
+function dropWithTwin(node) {
+  const other = twinOf(node);
+  dropSubtree(node);
+  if (other && branches.get(other.id)) {
+    other.twin = null;
+    dropSubtree(other);
+  }
+}
+
 function dropSubtree(node) {
   node.children.slice().forEach(id => {
     const c = branches.get(id);
@@ -634,46 +715,18 @@ function afterSettling(parentId) {
   createBranch();
 }
 
-/* The other half of a guess. Testing "a line here" is usually followed by
-   testing "no line here", and building that by hand means recreating the
-   branch and remembering to mark the opposite. */
-/* One branch may take over another whose assumption it has already settled.
-   If this branch has decided the very thing that branch was guessing at, that
-   branch's work is no longer a guess here — it is simply true — so its marks
-   can be brought across and the branch itself put away. */
-function adoptable() {
-  if (!trial) return [];
-  const board = deriveBoard(trial);
-  const out = [];
-  for (const node of branches.values()) {
-    if (node.id === trial.id) continue;
-    if (isAncestor(node.id, trial) || isAncestor(trial.id, node)) continue;
-    const p = node.premise;
-    if (!p || p.to === "0") continue;
-    const here = p.kind === "edge" ? board.edges[p.idx] : p.kind === "cell" ? board.cells[p.idx] : null;
-    if (here === p.to) out.push(node);
-  }
-  return out;
-}
-
-function isAncestor(id, of) {
-  for (let node = of; node; node = node.parent ? branches.get(node.parent) : null)
-    if (node.parent === id) return true;
-  return false;
-}
-
-/* Two branches that assume opposite things about the same square. Between
-   them they cover every case: an edge is a line or it is not, a square is one
-   side or the other. So anything both of them agree on is true whichever way
-   the guess goes, and belongs on the parent. */
+/* The other half of a fork. Twins know each other directly now; the premise
+   check is kept for branches made before that was so. */
 function inverseOf(node) {
   if (!node || !node.premise || node.premise.to === "0") return null;
+  const twin = twinOf(node);
+  if (twin) return twin;
   const mine = node.premise;
   const siblings = (node.parent ? branches.get(node.parent)?.children : trunk.children) || [];
   for (const id of siblings) {
     const other = branches.get(id);
-    if (!other || other.id === node.id || !other.premise) continue;
-    const theirs = other.premise;
+    const theirs = other && other.premise;
+    if (!theirs || other.id === node.id) continue;
     if (theirs.kind !== mine.kind || theirs.idx !== mine.idx) continue;
     if (theirs.to === "0" || theirs.to === mine.to) continue;
     return other;
@@ -681,7 +734,8 @@ function inverseOf(node) {
   return null;
 }
 
-/* What both of a pair have decided the same way. */
+/* What both halves have decided the same way. Between them they cover every
+   case, so anything they agree on holds whichever way the guess goes. */
 function agreedBetween(a, b) {
   const out = [];
   const boardA = deriveBoard(a),
@@ -694,10 +748,10 @@ function agreedBetween(a, b) {
     ]);
     for (const at of seen) {
       const idx = +at;
-      if (idx === a.premise.idx && kind === a.premise.kind) continue;   // the guess itself
+      if (a.premise && kind === a.premise.kind && idx === a.premise.idx) continue;
       const value = boardA[field][idx];
       if (value === "0" || value !== boardB[field][idx]) continue;
-      if (base[field][idx] === value) continue;                        // already known above
+      if (base[field][idx] === value) continue;
       out.push({ kind, idx, value });
     }
   };
@@ -735,6 +789,31 @@ function promoteAgreed() {
   );
 }
 
+/* One branch may take a copy of another's work when it has already settled
+   the very thing that branch was guessing at. The branch it came from stays:
+   A implying B, and B implying C, does not make C false when A is. */
+function adoptable() {
+  if (!trial) return [];
+  const board = deriveBoard(trial);
+  const out = [];
+  for (const node of branches.values()) {
+    if (node.id === trial.id || node.id === trial.twin) continue;
+    if (isAncestor(node.id, trial) || isAncestor(trial.id, node)) continue;
+    const p = node.premise;
+    if (!p || p.to === "0") continue;
+    const here =
+      p.kind === "edge" ? board.edges[p.idx] : p.kind === "cell" ? board.cells[p.idx] : null;
+    if (here === p.to) out.push(node);
+  }
+  return out;
+}
+
+function isAncestor(id, of) {
+  for (let node = of; node; node = node.parent ? branches.get(node.parent) : null)
+    if (node.parent === id) return true;
+  return false;
+}
+
 function adoptBranch() {
   const ready = adoptable();
   if (!ready.length) {
@@ -755,16 +834,12 @@ function adoptBranch() {
       const value = marks[key][at];
       const here =
         kind === "edge" ? board.edges[idx] : kind === "cell" ? board.cells[idx] : board.diag[idx];
-      if (here === value) continue;          // already so here
+      if (here === value) continue;
       if (kind === "edge" && setEdgeUser(idx, value, false)) taken++;
       else if (kind === "cell" && setCellUser(idx, value, false)) taken++;
       else if (kind === "diag" && setDiagUser(idx, value, false)) taken++;
     }
   }
-  /* The branch it came from stays. Its work rests on its own premise, and
-     that premise being wrong somewhere else would not make this branch's
-     marks wrong: A implying B, and B implying C, does not make C false when A
-     is. Copying is enough. */
   render();
   flush();
   toast(
@@ -772,22 +847,6 @@ function adoptBranch() {
       ? `Took ${taken} mark${taken === 1 ? "" : "s"} from ${branchLabel(from)}`
       : `Nothing new to take from ${branchLabel(from)}`,
   );
-}
-
-function branchOnOpposite() {
-  if (!trial || !trial.premise) {
-    toast("Assume something first, then this tries the other way");
-    return;
-  }
-  const p = trial.premise;
-  const parentId = trial.parent || null;
-  const opposite = negate(p);
-  switchBranch(parentId);
-  createBranch();
-  if (!trial) return;
-  if (p.kind === "edge") setEdgeUser(p.idx, opposite, false);
-  else if (p.kind === "cell") setCellUser(p.idx, opposite, false);
-  toast("Trying " + premiseLabel({ ...p, to: opposite }) + " instead");
 }
 
 function acceptBranch() {
@@ -817,7 +876,7 @@ function acceptBranch() {
     pushTree(c);
   }
   node.children = [];
-  dropSubtree(node);
+  dropWithTwin(node);
   switchBranch(parentId);
 
   const steps = [];
@@ -863,7 +922,7 @@ function rejectBranch(deduce) {
     parentId = node.parent;
   const sound = deduce && !!player && premiseHolds(node);
   const kids = node.children.length;
-  dropSubtree(node);
+  dropWithTwin(node);
   switchBranch(parentId);
   if (sound) {
     const neg = negate(player);
@@ -1171,7 +1230,6 @@ function renderTrial() {
 trialEls.start.onclick = createBranch;
 trialEls.accept.onclick = acceptBranch;
 trialEls.rename.onclick = () => renameBranch(trial);
-document.getElementById("trialFlip").onclick = branchOnOpposite;
 document.getElementById("trialAdopt").onclick = adoptBranch;
 document.getElementById("trialAgreed").onclick = promoteAgreed;
 trialEls.reject.onclick = () => rejectBranch(true);
@@ -1189,11 +1247,11 @@ function ownerLabel() {
 /* What only the person who opened the puzzle may do. Wiping everyone's lines,
    xs or colours is as destructive as replacing the puzzle, so those go the
    same way. A guest sees none of them rather than a row of dead buttons. */
-const OWNER_ONLY = ["newsheet", "clearlines", "clearx", "clearfill"];
+var OWNER_ONLY = ["newsheet", "clearlines", "clearx", "clearfill"];
 
 function applyOwnerRules() {
   const mine = isOwner();
-  for (const id of OWNER_ONLY) {
+  for (const id of OWNER_ONLY || []) {
     const btn = document.getElementById(id);
     if (btn) btn.hidden = !mine;
   }

@@ -188,9 +188,10 @@ function buildBoard() {
   gSegGhost = mk("g");
   gSegDrawn = gSeg;
   board.append(
-    // dots sit under the lines: a line should run through them, not stop at
-    // a bead sitting on top of it
-    gBoard, gFill, gDiag, gBad, gDot, gX, gSegGhost, gSeg, gRel, premGroup, gClue, traceEl,
+    /* Dots sit under the drawn lines, so a line runs through them rather than
+       stopping at a bead — but above the faint grid, which otherwise buries
+       them. */
+    gBoard, gFill, gDiag, gBad, gSegGhost, gDot, gX, gSeg, gRel, premGroup, gClue, traceEl,
   );
 }
 

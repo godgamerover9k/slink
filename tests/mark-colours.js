@@ -68,9 +68,12 @@ const sync=async(A,B)=>{ await wait(700); await A.ev('poll()'); await B.ev('poll
  const kids=A.ev(`[...document.getElementById('board').children].map(g=>
    g.firstChild ? (g.firstChild.getAttribute('class')||'') : '')`);
  const dotsAt=kids.findIndex(c=>/(^|\s)dot(\s|$)/.test(c));
- const linesAt=kids.findIndex(c=>/(^|\s)seg(\s|$)/.test(c));
- ck('the board has both dots and lines', dotsAt>=0 && linesAt>=0, true);
- ck('dots are drawn before the lines', dotsAt < linesAt, true);
+ // segments live in two groups: the faint grid, then the drawn lines
+ const ghostAt=kids.findIndex(c=>/(^|\s)seg(\s|$)/.test(c));
+ const drawnAt=kids.map((c,i)=>/(^|\s)seg(\s|$)/.test(c)?i:-1).filter(i=>i>=0).pop();
+ ck('the board has dots and both line layers', dotsAt>=0 && ghostAt>=0 && drawnAt>ghostAt, true);
+ ck('dots sit above the faint grid', dotsAt > ghostAt, true);
+ ck('and below the drawn lines', dotsAt < drawnAt, true);
  console.log(`\n${pass} passed, ${fail} failed`);
  process.exit(fail?1:0);
 })();

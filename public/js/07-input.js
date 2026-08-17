@@ -31,7 +31,7 @@ let diagStart = null;
 /* Which key does what. Held down rather than pressed, so these are the keys
    you lean on while dragging. Changed in the tools panel and remembered per
    browser; the defaults are what they always were. */
-const KEY_DEFAULTS = { diagonal: "d", claim: "r" };
+const KEY_DEFAULTS = { diagonal: "d", claim: "r", branch: "b" };
 const keyBinds = { ...KEY_DEFAULTS };
 
 (function loadKeys() {
@@ -64,8 +64,14 @@ function setKeyBind(action, key) {
 const isKey = (ev, action) => (ev.key || "").toLowerCase() === keyBinds[action];
 
 window.addEventListener("keydown", ev => {
+  if (ev.target && /input|textarea/i.test(ev.target.tagName)) return;
   if (isKey(ev, "claim")) relHeld = true;
   if (isKey(ev, "diagonal")) diagHeld = true;
+  // pressed rather than held: start a branch
+  if (isKey(ev, "branch") && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+    ev.preventDefault();
+    if (typeof createBranch === "function") createBranch();
+  }
 });
 window.addEventListener("keyup", ev => {
   if (isKey(ev, "claim")) relHeld = false;

@@ -26,26 +26,27 @@ const ck=(n,a,b)=>{const ok=JSON.stringify(a)===JSON.stringify(b);ok?pass++:fail
  const X=ev('engine.H(2,2)');
  const both=ev('engine.V(5,5)'), onlyOne=ev('engine.H(6,6)'), disagree=ev('engine.V(1,3)');
 
- // a branch in the middle, so the pair is not already side by side
+ // an unrelated branch, so the pair is not adjacent by accident
  ev('switchBranch(null)');
  $('trialStart').click();
  ev(`setEdgeUser(${ev('engine.H(0,0)')},"1",false)`);
+ await wait(80);
  const middle=ev('trial.id');
 
+ // one guess: the twin is made for us
  ev('switchBranch(null)');
  $('trialStart').click();
  const yes=ev('trial.id');
- ev(`setEdgeUser(${X},"1",false)`);              // assume a line
- ev(`setEdgeUser(${both},"1",false)`);           // both will conclude this
- ev(`setEdgeUser(${onlyOne},"2",false)`);        // only this branch says so
+ ev(`setEdgeUser(${X},"1",false)`);
+ await wait(80);
+ const no=ev('trial.twin');
+ ev(`setEdgeUser(${both},"1",false)`);            // this branch concludes it
+ ev(`setEdgeUser(${onlyOne},"2",false)`);         // only this branch says so
  ev(`setEdgeUser(${disagree},"1",false)`);
 
- ev('switchBranch(null)');
- $('trialStart').click();
- const no=ev('trial.id');
- ev(`setEdgeUser(${X},"2",false)`);              // assume no line
- ev(`setEdgeUser(${both},"1",false)`);           // same conclusion
- ev(`setEdgeUser(${disagree},"2",false)`);       // the opposite conclusion
+ ev(`switchBranch(${q(no)})`);
+ ev(`setEdgeUser(${both},"1",false)`);            // the twin agrees
+ ev(`setEdgeUser(${disagree},"2",false)`);        // and disagrees here
  ev('render()');
 
  console.log('--- they are listed together ---');
