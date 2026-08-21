@@ -225,6 +225,20 @@ function makeServer(opt) {
     };
     if (req.method === "OPTIONS") { res.writeHead(204, cors); return res.end(); }
 
+    /* Which build is on disk, without opening the page. Read from the page
+       itself so the two can never disagree. */
+    if (u === "/version") {
+      const page = findPage();
+      let version = "unknown";
+      try {
+        const found = /<meta name="version" content="([^"]+)">/.exec(
+          fs.readFileSync(page, "utf8"),
+        );
+        if (found) version = found[1];
+      } catch (edge) {}
+      res.writeHead(200, { "Content-Type": "text/plain", "Cache-Control": "no-store" });
+      return res.end(version);
+    }
     if (u === "/kv/__health") {
       // unauthenticated on purpose: it only says "a room server lives here"
       res.writeHead(200, { ...cors, "Content-Type": "text/plain" });

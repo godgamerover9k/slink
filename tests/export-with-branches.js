@@ -28,12 +28,12 @@ const ck=(n,a,b)=>{const ok=JSON.stringify(a)===JSON.stringify(b);ok?pass++:fail
  $('trialStart').click();
  const b2=ev('trial.id'); const e2=ev('engine.V(3,3)');
  ev(`setEdgeUser(${e2},"1",false)`); ev('render()');
- ck('two branches exist', ev('branches.size'), 2);
+ ck('two guesses, each with its twin', ev('branches.size'), 4);
 
  $('exportBtn').click(); await wait(120);
  const text=await dl.text(); const save=JSON.parse(text);
  const pr=save.puzzles[0].progress;
- ck('export carries the tree', Object.keys(pr.tree||{}).length, 2);
+ ck('export carries the tree', Object.keys(pr.tree||{}).length, 4);
  ck('export records which branch was open', pr.active, b2);
  ck('the sheet exported is the sheet, not the branch', pr.edges[e1], '0');
  ck('sheet mark still present', pr.edges[sheetEdge], '1');
@@ -42,7 +42,7 @@ const ck=(n,a,b)=>{const ok=JSON.stringify(a)===JSON.stringify(b);ok?pass++:fail
  ev('clearBranches()');
  $('packIn').onchange({target:{files:[{name:'p.json',text:async()=>text}],value:''}});
  await wait(900);
- ck('both branches came back', ev('branches.size'), 2);
+ ck('all of them came back', ev('branches.size'), 4);
  ck('branch one kept its mark', ev(`(()=>{const n=branches.get(${JSON.stringify(b1)});return n&&n.marks.e[${e1}];})()`), '2');
  ck('branch two kept its mark', ev(`(()=>{const n=branches.get(${JSON.stringify(b2)});return n&&n.marks.e[${e2}];})()`), '1');
  ck('nesting preserved', ev(`(()=>{const n=branches.get(${JSON.stringify(b2)});return n&&n.parent;})()`), b1);

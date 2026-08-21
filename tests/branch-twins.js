@@ -23,15 +23,21 @@ const ck=(n,a,b)=>{const ok=JSON.stringify(a)===JSON.stringify(b);ok?pass++:fail
  $('createBtn').click();
  for(let i=0;i<300&&!ev('room');i++)await wait(100);
 
- console.log('--- one guess makes two branches ---');
+ console.log('--- starting a branch starts its opposite ---');
  $('trialStart').click();
+ ck('two branches exist straight away', ev('branches.size'), 2);
+ ck('linked to each other', !!ev('trial.twin'), true);
+ ck('with nothing assumed yet on either',
+    [ev('trial.premise'), ev('branches.get(trial.twin).premise')], [null,null]);
+ ck('and the list shows both', ev(`document.querySelectorAll('.tw--paired').length`), 2);
+
+ console.log('\n--- deciding one decides the other ---');
  const A=ev('trial.id');
  const X=ev('engine.H(2,2)');
  ev(`setEdgeUser(${X},"1",false)`);
  await wait(80);
- ck('a twin was made', !!ev('trial.twin'), true);
  const B=ev('trial.twin');
- ck('there are two branches', ev('branches.size'), 2);
+ ck('no third branch appeared', ev('branches.size'), 2);
  ck('each points at the other',
     [ev(`branches.get(${q(A)}).twin`), ev(`branches.get(${q(B)}).twin`)], [B,A]);
  ck('the twin assumes the opposite',
@@ -48,6 +54,7 @@ const ck=(n,a,b)=>{const ok=JSON.stringify(a)===JSON.stringify(b);ok?pass++:fail
  console.log('\n--- you can see they are a pair ---');
  ev('switchBranch(null)'); ev('render()');
  const paired=[...window.document.querySelectorAll('.tw--paired')];
+ console.log('   branches:', ev(`JSON.stringify([...branches.values()].map(n=>[n.id.slice(-3),n.twin?n.twin.slice(-3):null,n.premise?n.premise.to:'-']))`));
  ck('both rows are marked as a pair', paired.length, 2);
  ck('one is drawn as the top of the bracket and one as the foot',
     [paired.filter(r=>r.classList.contains('tw--pairTop')).length,

@@ -72,6 +72,17 @@ inherits from above automatically.
 | `10-setup.js` | the hello screen: new puzzle, join, import |
 | `11-boot.js` | starting everything up |
 
+## Which build is live
+
+The version sits in the page's head and is bumped whenever this is published:
+
+    curl https://weslither.link/version        # what the server has
+    slinkVersion                               # in the browser console
+    Credits                                    # at the foot of the panel
+
+All three read the same line, so they cannot disagree. If the page shows an
+older one than the server, the browser is holding a copy — hard-reload.
+
 ## Settings
 
 The server reads `PORT`, `SLINK_KEY`, `SLINK_OPEN`, `SLINK_PAGE`, `SLINK_DATA`,

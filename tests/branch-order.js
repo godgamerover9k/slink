@@ -23,19 +23,19 @@ const ck=(n,a,b)=>{const ok=JSON.stringify(a)===JSON.stringify(b);ok?pass++:fail
  for(let i=0;i<3;i++){ ev('switchBranch(null)'); $('trialStart').click();
    ev(`setEdgeUser(${ev(`engine.H(${i},0)`)},"1",false)`); ids.push(ev('trial.id')); }
  ev('switchBranch(null)'); ev('render()');
- ck('made in order', JSON.parse(ev('JSON.stringify(trunk.children)')), ids);
+ const mine=()=>JSON.parse(ev('JSON.stringify(trunk.children)')).filter(id=>ids.includes(id));
+ ck('made in order', mine(), ids);
  // rename the first one
  ev(`switchBranch(${JSON.stringify(ids[0])})`);
  $('trialRename').click();
  ev('switchBranch(null)'); ev('render()');
- ck('renaming leaves it where it was', JSON.parse(ev('JSON.stringify(trunk.children)')), ids);
+ ck('renaming leaves it where it was', mine(), ids);
  ck('the name took', ev(`branches.get(${JSON.stringify(ids[0])}).name`), 'renamed');
  // and marking on a branch should not move it either
  ev(`switchBranch(${JSON.stringify(ids[1])})`);
  ev(`setEdgeUser(${ev('engine.V(3,3)')},"2",false)`);
  ev('switchBranch(null)'); ev('render()');
- ck('drawing on a branch leaves it where it was',
-    JSON.parse(ev('JSON.stringify(trunk.children)')), ids);
+ ck('drawing on a branch leaves it where it was', mine(), ids);
  console.log(`\n${pass} passed, ${fail} failed`);
  process.exit(fail?1:0);
 })();

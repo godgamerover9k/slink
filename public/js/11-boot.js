@@ -21,6 +21,28 @@ function placeBranchPanel() {
 }
 
 
+/* Which build this is. Kept in the page's head so it travels with the file
+   rather than being remembered separately, and put on window so it can be
+   read from the console without opening anything. */
+var slinkVersion = (() => {
+  try {
+    const tag = document.querySelector('meta[name="version"]');
+    return (tag && tag.content) || "unknown";
+  } catch (e) {
+    return "unknown";
+  }
+})();
+
+queueMicrotask(() => {
+  try {
+    window.slinkVersion = slinkVersion;
+    const shown = document.getElementById("versionText");
+    if (shown) shown.textContent = slinkVersion;
+    const credits = document.getElementById("creditsBtn");
+    if (credits) credits.title = "Credits, and how this was made · version " + slinkVersion;
+  } catch (e) {}
+});
+
 /* Anyone arriving at the old address is sent to the new one, keeping whatever
    puzzle or key was on the link. Kept separate from the act of going there so
    the decision can be checked without a browser navigating. */
@@ -121,4 +143,5 @@ queueMicrotask(() => {
 export {
   homeRedirectTarget,
   placeBranchPanel,
+  slinkVersion,
 };

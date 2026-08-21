@@ -263,6 +263,11 @@ function mergeBranchRecord(into, from) {
     out.nameAt = from.nameAt;
   }
   out.made = Math.min(into.made || into.at || 0, from.made || from.at || 0) || out.made;
+  /* Adoption sticks. Sliding a branch into the stack is a decision about how
+     this one is read, so it is kept whichever copy is newer, and both sides
+     are taken — never replaced by a copy written before it happened. */
+  out.adopted = [...new Set([...(into.adopted || []), ...(from.adopted || [])])];
+  out.twin = into.twin || from.twin || null;
   out.marks = { ...(into.marks || {}) };
   out.mt = { ...(into.mt || {}) };
   out.mo = { ...(into.mo || {}) };
@@ -597,16 +602,18 @@ function premiseTaken(parentId, kind, idx, ignoreId) {
 }
 
 function makeTwin(node) {
-  if (!node || !node.premise || node.twin) return null;
+  if (!node || !node.premise) return null;
   const p = node.premise;
   const other = negate(p);
   if (other === "0" || other === p.to) return null;
 
-  const twin = {
+  /* The twin was made when the branch was. Deciding this one tells it what it
+     is assuming: the same square, the other way. */
+  const waiting = twinOf(node);
+  const twin = waiting || {
     id: newBranchId(),
     parent: node.parent || null,
     children: [],
-    premise: { kind: p.kind, idx: p.idx, from: p.from, to: other },
     marks: { e: {}, k: {}, d: {} },
     mt: {},
     mo: {},
@@ -615,9 +622,12 @@ function makeTwin(node) {
     at: now(),
     made: now(),
     twin: node.id,
+    adopted: [],
     undo: [],
     redo: [],
   };
+  if (waiting && waiting.premise) return waiting;      // already decided
+  twin.premise = { kind: p.kind, idx: p.idx, from: p.from, to: other };
   // the twin's own assumption, recorded the same way any mark would be
   const key = MARK_KEY[p.kind];
   twin.marks[key][p.idx] = other;
@@ -625,8 +635,12 @@ function makeTwin(node) {
   twin.mo[key] = { [p.idx]: penSlot(me.id) };
 
   node.twin = twin.id;
-  branches.set(twin.id, twin);
-  (node.parent ? branches.get(node.parent) : trunk).children.push(twin.id);
+  if (!waiting) {
+    // only a twin made here needs putting into the tree; the one made
+    // alongside the branch is already in it
+    branches.set(twin.id, twin);
+    (node.parent ? branches.get(node.parent) : trunk).children.push(twin.id);
+  }
   pushTree(twin);
   pushTree(node);
   renderTrial();
@@ -694,6 +708,33 @@ function createBranch() {
   branches.set(node.id, node);
   (parent || trunk).children.push(node.id);
   pushTree(node);
+
+  /* A guess only means something beside the other way round, so the pair is
+     made here rather than waiting for the first mark. The twin sits empty
+     until this one is decided, then takes the opposite. */
+  const twin = {
+    id: newBranchId(),
+    parent: node.parent,
+    children: [],
+    premise: null,
+    marks: { e: {}, k: {}, d: {} },
+    mt: {},
+    mo: {},
+    by: node.by,
+    byId: node.byId,
+    at: now(),
+    made: now(),
+    twin: node.id,
+    adopted: [],
+    undo: [],
+    redo: [],
+  };
+  node.twin = twin.id;
+  branches.set(twin.id, twin);
+  (parent || trunk).children.push(twin.id);
+  pushTree(twin);
+  pushTree(node);
+
   switchBranch(node.id);
   toast(parent ? "Branched off " + premiseLabel(parent.premise) : "New branch off the puzzle");
 }

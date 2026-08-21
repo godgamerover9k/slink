@@ -3,6 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<!-- Bumped whenever this is published, so it can be told apart from a copy
+     the browser is holding on to. Shown in the credits, and readable from
+     the console as slinkVersion. -->
+<meta name="version" content="2026-08-21.1">
 <title>WeSLink — Slitherlink together</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -196,6 +200,8 @@
         assistant, working from a person's instructions. Expect the odd rough
         edge.
       </p>
+      <p class="done__body" style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;
+        color:var(--muted);opacity:.8">VERSION <span id="versionText">—</span></p>
       <button class="btn btn--solid" id="creditsClose">Back to the puzzle</button>
     </div>
   </div>

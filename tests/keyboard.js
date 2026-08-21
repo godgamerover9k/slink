@@ -25,7 +25,7 @@ const key=(el,k)=>el.dispatchEvent(new window.KeyboardEvent('keydown',{key:k,bub
  ev('switchBranch(null)');
  $('trialStart').click(); ev(`setEdgeUser(${ev('engine.H(2,2)')},"2",false)`);
  ev('switchBranch(null)'); ev('render()');
- ck('three rows: the sheet and two branches', rows().length, 3);
+ ck('the master, two guesses and their twins', rows().length, 5);
  ck('on the sheet to start', ev('!!trial'), false);
 
  key(rows()[0],'ArrowDown');

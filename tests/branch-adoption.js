@@ -72,6 +72,22 @@ const ck=(n,a,b)=>{const ok=JSON.stringify(a)===JSON.stringify(b);ok?pass++:fail
  ev(`switchBranch(${q(B)})`);
  ck('taking it back there takes it back here too', ev(`room.edges[${later}]`), '0');
 
+ console.log('\n--- adoption is permanent ---');
+ // a copy of the puzzle written by someone who never saw the adoption
+ const stale=ev(`(()=>{
+   const copy=JSON.parse(JSON.stringify(room));
+   for(const id in copy.tree) if(copy.tree[id].adopted) copy.tree[id].adopted=[];
+   copy.now=now()+5000;
+   for(const id in copy.tree) copy.tree[id].at=now()+5000;
+   return JSON.stringify(copy);
+ })()`);
+ ev(`adopt(JSON.parse(${JSON.stringify(stale)}))`);
+ ev('render()');
+ ck('a later write without it does not undo it',
+    ev(`(branches.get(${q(B)}).adopted||[]).includes(${q(A)})`), true);
+ ev(`switchBranch(${q(B)})`);
+ ck('and the work still shows through', ev(`room.edges[${workOne}]`), '1');
+
  console.log('\n--- what it will not adopt ---');
  $('trialStart').click();
  const C=ev('trial.id');

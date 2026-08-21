@@ -36,17 +36,17 @@ const rows=()=>[...window.document.querySelectorAll('.tw__label')].map(e=>e.text
  console.log('--- you see what hangs off where you are ---');
  // on the master: its own branches, but not what hangs under them
  ev('switchBranch(null)'); ev('render()');
- ck('the master and its branches are listed', rows().length, 2);
+ ck('the master, the branch and its twin', rows().length, 3);
  ck('nothing to click to expand',
     ev(`document.querySelectorAll('.tw__twist').length`), 0);
 
  // on the parent: its offshoot appears
  ev(`switchBranch(${q(parent)})`); ev('render()');
- ck('choosing a branch shows what is under it', rows().length, 3);
+ ck('choosing a branch shows what is under it', rows().length, 5);
 
  // deeper: the whole path stays visible
  ev(`switchBranch(${q(kid)})`); ev('render()');
- ck('and the way back stays in view', rows().length, 3);
+ ck('and the way back stays in view', rows().length, 5);
 
  // a second branch off the master, with its own child
  ev('switchBranch(null)');
@@ -59,10 +59,10 @@ const rows=()=>[...window.document.querySelectorAll('.tw__label')].map(e=>e.text
  const shown=[...window.document.querySelectorAll('.tw')].map(r=>r.dataset.branch);
  ck("the other branch is listed", shown.includes(other), true);
  ck("but its offshoot is not, since you are not on it",
-    shown.length, 4);
+    shown.length, 7);
  ev(`switchBranch(${q(other)})`); ev('render()');
  const nowShown=[...window.document.querySelectorAll('.tw')].map(r=>r.dataset.branch);
- ck("its own offshoot is now in view", nowShown.length, 4);
+ ck("its own offshoot is now in view", nowShown.length, 7);
  ck("and the first branch's offshoot has gone out of view",
     nowShown.includes(kid), false);
  ev('switchBranch(null)');

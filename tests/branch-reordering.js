@@ -55,8 +55,9 @@ const order=()=>{
  console.log('\n--- what must not move ---');
  ck('a branch cannot leave its parent',
     A.ev(`reorderBranch(${q(kid)},${q(ids[1])},true)`), false);
+ // the nested guess brought a twin, so check it is still there and still first
  ck('the nested one is untouched',
-    A.ev(`JSON.stringify(branches.get(${q(ids[0])}).children)`), q([kid]).replace(/"/g,'"'));
+    JSON.parse(A.ev(`JSON.stringify(branches.get(${q(ids[0])}).children)`))[0], kid);
  ck('dropping onto itself does nothing',
     A.ev(`reorderBranch(${q(ids[0])},${q(ids[0])},true)`), false);
 

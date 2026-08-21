@@ -84,7 +84,7 @@ const activeRow = () => {
   ck('child knows its parent', ev('trial.parent'), b1);
   ck('child inherits the parent board', ev(`room.edges[${E0}]`), '1');
   ev(`queueOp(${E2},"2")`); ev('render()');
-  ck('tree shows sheet + 2 branches', rows().length, 3);
+  ck('the master, two guesses and their twins', rows().length, 5);
   ck('ancestor premise also circled', doc.querySelectorAll('.prem').length, 2);
   ck('ancestor drawn faintly', doc.querySelectorAll('.prem--anc').length, 1);
 
@@ -95,8 +95,8 @@ const activeRow = () => {
   $('trialStart').click();
   const b3 = ev('trial.id');
   ev(`queueOp(${ev('engine.H(4,4)')},"1")`); ev('render()');
-  ck('parent now has two children', ev(`branches.get(${JSON.stringify(b1)}).children.length`), 2);
-  ck('four rows in the tree', rows().length, 4);
+  ck('the parent holds the pair', ev(`branches.get(${JSON.stringify(b1)}).children.length`), 4);
+  ck('every branch listed with its twin', rows().length, 7);
 
   console.log('\n--- switching branches swaps the board ---');
   ev(`switchBranch(${JSON.stringify(b2)})`);
@@ -116,7 +116,7 @@ const activeRow = () => {
   ck('moved up to the parent', ev('trial.id'), b1);
   ck('opposite written on the parent', ev(`room.edges[${prem2}]`), '1');
   ck('nested branch gone from the tree', ev(`branches.has(${JSON.stringify(b2)})`), false);
-  ck('parent keeps its other child', ev(`branches.get(${JSON.stringify(b1)}).children`), [b3]);
+  ck('the parent keeps the other pair', ev(`branches.get(${JSON.stringify(b1)}).children`).length, 2);
   ck('deduction did NOT reach the sheet yet', ev('pending.length'), 0);
 
   console.log('\n--- contradiction on a root branch writes to the shared sheet ---');
