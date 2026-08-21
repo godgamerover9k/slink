@@ -24,7 +24,8 @@ const press=(P,k,type)=>P.w.dispatchEvent(new P.w.KeyboardEvent(type||'keydown',
  const A=mk(); await wait(400);
  console.log('--- the defaults ---');
  ck('diagonal is D', A.ev('keyBinds.diagonal'), 'd');
- ck('claim is R', A.ev('keyBinds.claim'), 'r');
+ ck('branching is B', A.ev('keyBinds.branch'), 'b');
+ ck('and there is no claim key any more', A.ev('keyBinds.claim'), undefined);
  press(A,'d'); ck('holding D arms the diagonal', A.ev('diagHeld'), true);
  press(A,'d','keyup');
 
@@ -36,7 +37,7 @@ const press=(P,k,type)=>P.w.dispatchEvent(new P.w.KeyboardEvent(type||'keydown',
  press(A,'d','keyup');
 
  console.log('\n--- what is refused ---');
- ck('a key already in use', A.ev(`setKeyBind('claim','g')`), false);
+ ck('a key already in use', A.ev(`setKeyBind('branch','g')`), false);
  ck('something that is not a key', A.ev(`setKeyBind('diagonal','Shift')`), false);
  ck('and an action that does not exist', A.ev(`setKeyBind('nonsense','k')`), false);
  ck('the binding survived all that', A.ev('keyBinds.diagonal'), 'g');

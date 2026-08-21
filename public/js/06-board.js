@@ -21,7 +21,6 @@ var traceEl = null,
   premGroup = null,
   gDiag = null,
   gBoard = null,
-  gRel = null,
   gSegGhost = null,   // undecided segments, kept beneath the drawn ones
   gSegDrawn = null;   // the drawn ones, above them
 
@@ -187,7 +186,6 @@ function buildBoard() {
   }
   traceEl = mk("path", { class: "trace", d: "" });
   premGroup = mk("g");
-  gRel = mk("g");
   /* Bottom to top: paper, colour fills, diagonal scribbles, the error wash,
      then x marks and lines, then premise rings (which must stay visible even
      when they circle a drawn line), and finally the dots and clue numbers so
@@ -198,7 +196,7 @@ function buildBoard() {
     /* Dots sit under the drawn lines, so a line runs through them rather than
        stopping at a bead — but above the faint grid, which otherwise buries
        them. */
-    gBoard, gFill, gDiag, gBad, gSegGhost, gDot, gX, gSeg, gRel, premGroup, gClue, traceEl,
+    gBoard, gFill, gDiag, gBad, gSegGhost, gDot, gX, gSeg, premGroup, gClue, traceEl,
   );
 }
 
@@ -431,7 +429,6 @@ function render() {
   }
 
   paintDiagonals();
-  paintRels();
   renderRack();
   renderReadout(info);
   renderTrial();
@@ -440,48 +437,6 @@ function render() {
 
 var MARK_FILL = { 1: "var(--mark-blue)", 2: "var(--mark-yellow)" };
 
-/* A claim is drawn as a tie between the two squares: a plain line for "same
-   side", one with a break through it for "opposite sides". */
-function paintRels() {
-  if (!gRel) return;
-  while (gRel.firstChild) gRel.removeChild(gRel.firstChild);
-  ensureCells(room);
-  const NS = "http://www.w3.org/2000/svg";
-  const mid = cell => ({
-    x: PAD + (cell % engine.C) * CELL + CELL / 2,
-    y: PAD + ((cell / engine.C) | 0) * CELL + CELL / 2,
-  });
-  for (const key in room.rels) {
-    const [a, btn] = key.split(":").map(Number);
-    if (!(a >= 0 && btn >= 0 && a < engine.NC && btn < engine.NC)) continue;
-    const player = mid(a),
-      other = mid(btn);
-    const line = document.createElementNS(NS, "line");
-    line.setAttribute("x1", player.x);
-    line.setAttribute("y1", player.y);
-    line.setAttribute("x2", other.x);
-    line.setAttribute("y2", other.y);
-    line.setAttribute("class", "rel rel--" + room.rels[key]);
-    gRel.appendChild(line);
-    if (room.rels[key] === "d") {
-      // a break, meaning "not the same"
-      const cx = (player.x + other.x) / 2,
-        cy = (player.y + other.y) / 2;
-      const dx = other.x - player.x,
-        dy = other.y - player.y,
-        len = Math.hypot(dx, dy) || 1;
-      const nx = (-dy / len) * CELL * 0.16,
-        ny = (dx / len) * CELL * 0.16;
-      const tick = document.createElementNS(NS, "line");
-      tick.setAttribute("x1", cx - nx);
-      tick.setAttribute("y1", cy - ny);
-      tick.setAttribute("x2", cx + nx);
-      tick.setAttribute("y2", cy + ny);
-      tick.setAttribute("class", "rel rel--tick");
-      gRel.appendChild(tick);
-    }
-  }
-}
 
 function paintDiagonals() {
   if (!gDiag) return;
@@ -784,12 +739,10 @@ export {
   fmtClock,
   gBoard,
   gDiag,
-  gRel,
   gSegDrawn,
   gSegGhost,
   loopStatus,
   paintDiagonals,
-  paintRels,
   penMap,
   penSlot,
   penVar,

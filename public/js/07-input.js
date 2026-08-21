@@ -1,4 +1,4 @@
-import { engine, ensureCells, queueCell, queueDiag, queueOp, queueRel, relKey, room } from "./05-room-state.js";
+import { engine, ensureCells, queueCell, queueDiag, queueOp, room } from "./05-room-state.js";
 import { CELL, PAD, board, edgeAt, render } from "./06-board.js";
 import { createBranch, propagateDown } from "./08-branches.js";
 import { veil } from "./10-setup.js";
@@ -27,16 +27,13 @@ var dragVal = null,
   redoStack = [];
 var dragLast = null,
   dragFrom = null,
-  diagHeld = false,
-  relHeld = false,
-  relFrom = -1,
-  relWantSame = false;
+  diagHeld = false;
 var diagStart = null;
 
 /* Which key does what. Held down rather than pressed, so these are the keys
    you lean on while dragging. Changed in the tools panel and remembered per
    browser; the defaults are what they always were. */
-var KEY_DEFAULTS = { diagonal: "d", claim: "r", branch: "b" };
+var KEY_DEFAULTS = { diagonal: "d", branch: "b" };
 var keyBinds = { ...KEY_DEFAULTS };
 
 
@@ -123,17 +120,6 @@ function setEdgeUser(i, val, intoStroke) {
   return true;
 }
 
-function setRelUser(key, val) {
-  ensureCells(room);
-  const before = room.rels[key] || "0";
-  if (before === val) return false;
-  if (!queueRel(key, val)) return false;
-  undoStack.push([{ r: key, from: before, to: val }]);
-  redoStack = [];
-  render();
-  return true;
-}
-
 function setDiagUser(cell, val, intoStroke) {
   ensureCells(room);
   const before = room.diag[cell];
@@ -162,8 +148,7 @@ function setCellUser(cell, val, intoStroke) {
 
 /* replay one undo/redo step, whichever kind of mark it was */
 function applyStep(step, val) {
-  if (step.r !== undefined) queueRel(step.r, val);
-  else if (step.d !== undefined) queueDiag(step.d, val);
+  if (step.d !== undefined) queueDiag(step.d, val);
   else if (step.k !== undefined) queueCell(step.k, val);
   else queueOp(step.e, val);
 }
@@ -302,20 +287,6 @@ var endDrag = ev => {
     dragFrom = null;
     return;
   }
-  if (dragMode === "rel") {
-    const pt = ev && ev.clientX !== undefined ? svgPoint(ev) : null;
-    const to = pt ? cellAt(pt.x, pt.y) : -1;
-    if (to >= 0 && to !== relFrom) {
-      const key = relKey(relFrom, to);
-      const want = relWantSame ? "s" : "d";
-      // the same claim twice takes it away, like every other mark
-      setRelUser(key, (room.rels[key] || "0") === want ? "0" : want);
-    }
-    relFrom = -1;
-    dragMode = null;
-    stroke = null;
-    return;
-  }
   // a D-click that never moved still leaves a mark, slanting one way by default
   if (dragMode === "diag" && stroke && !stroke.length && dragFrom) {
     const cell = cellAt(dragFrom.x, dragFrom.y);
@@ -376,7 +347,6 @@ queueMicrotask(() => {
   })();
   window.addEventListener("keydown", ev => {
     if (ev.target && /input|textarea/i.test(ev.target.tagName)) return;
-    if (isKey(ev, "claim")) relHeld = true;
     if (isKey(ev, "diagonal")) diagHeld = true;
     // pressed rather than held: start a branch
     if (isKey(ev, "branch") && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
@@ -385,12 +355,10 @@ queueMicrotask(() => {
     }
   });
   window.addEventListener("keyup", ev => {
-    if (isKey(ev, "claim")) relHeld = false;
     if (isKey(ev, "diagonal")) diagHeld = false;
   });
   window.addEventListener("blur", () => {
-    relHeld = false;
-    diagHeld = false;
+      diagHeld = false;
   });
   window.addEventListener("keydown", ev => {
     if (ev.code === "Space" && !/input|textarea/i.test((ev.target || {}).tagName || "")) {
@@ -474,17 +442,6 @@ queueMicrotask(() => {
     // a second finger is the start of a pinch, not another pen
     if (ev.pointerType === "touch" && touchesDown > 1) return;
   
-    if (relHeld || touchMode === "claim") {
-      // claim about two squares
-      const cell = cellAt(pt.x, pt.y);
-      if (cell < 0) return;
-      ev.preventDefault();
-      board.setPointerCapture(ev.pointerId);
-      relFrom = cell;
-      dragMode = "rel";
-      relWantSame = ev.shiftKey;
-      return;
-    }
   
     if (diagHeld || touchMode === "diag") {
       /* A diagonal is drawn corner to corner, not clicked: start near a dot and
@@ -714,9 +671,6 @@ export {
   keyBinds,
   panning,
   redoStack,
-  relFrom,
-  relHeld,
-  relWantSame,
   resetView,
   saveKeys,
   setCellUser,
@@ -724,7 +678,6 @@ export {
   setEdgeUser,
   setKeyBind,
   setRedoStack,
-  setRelUser,
   setUndoStack,
   setViewFull,
   spaceHeld,

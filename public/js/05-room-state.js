@@ -242,7 +242,6 @@ function blankRoom(code, puz) {
     ct: new Array(gg.NC).fill(0),
     diag: "0".repeat(gg.NC),
     dt: new Array(gg.NC).fill(0),
-    rels: {},
     rt: {}, // "a:b" -> "s" same side | "d" opposite
     players: [],
     solvedAt: null,
@@ -272,19 +271,14 @@ function ensureCells(r) {
   if (!Array.isArray(r.ct) || r.ct.length !== node) r.ct = new Array(node).fill(0);
   if (typeof r.diag !== "string" || r.diag.length !== node) r.diag = "0".repeat(node);
   if (!Array.isArray(r.dt) || r.dt.length !== node) r.dt = new Array(node).fill(0);
-  if (!r.rels || typeof r.rels !== "object") r.rels = {};
   if (!r.rt || typeof r.rt !== "object") r.rt = {};
   return r;
 }
 
 function applyOp(r, op) {
   if (op.r !== undefined) {
-    // a claim about two squares
     ensureCells(r);
     const cell = op.r;
-    if (op.t <= (r.rt[cell] || 0)) return false;
-    if (op.val === "0") delete r.rels[cell];
-    else r.rels[cell] = op.val;
     r.rt[cell] = op.t;
     return true;
   }
@@ -374,8 +368,6 @@ function adopt(remote) {
   }
   for (const key in remote.rt) {
     if ((remote.rt[key] || 0) > (room.rt[key] || 0)) {
-      if (remote.rels[key]) room.rels[key] = remote.rels[key];
-      else delete room.rels[key];
       room.rt[key] = remote.rt[key];
     }
   }
@@ -586,30 +578,7 @@ function queueOp(edge, val) {
   return true;
 }
 
-/* A claim that two squares lie on the same side of the loop, or on opposite
-   sides. Unlike a colour it says nothing about which side is which. */
-function relKey(item, btn) {
-  return item < btn ? item + ":" + btn : btn + ":" + item;
-}
 
-function queueRel(key, val) {
-  ensureCells(room);
-  const value = String(val);
-  if ((room.rels[key] || "0") === value) return false;
-  if (trial) {
-    if (value === "0") delete room.rels[key];
-    else room.rels[key] = value;
-    recordMark(trial, "rel", key, value);
-    return true;
-  }
-  const op = { r: key, val: value, t: now() };
-  if (!applyOp(room, op)) return false;
-  pending.push(op);
-  recent.push(op);
-  clearTimeout(flushTimer);
-  flushTimer = setTimeout(flush, FLUSH_MS);
-  return true;
-}
 
 function queueDiag(cell, val) {
   ensureCells(room);
@@ -790,10 +759,8 @@ export {
   queueCell,
   queueDiag,
   queueOp,
-  queueRel,
   randCode,
   recent,
-  relKey,
   room,
   setEngine,
   setFlushTimer,

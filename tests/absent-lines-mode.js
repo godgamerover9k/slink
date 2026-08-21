@@ -77,31 +77,6 @@ const css=(sel,prop)=>ev(`getComputedStyle(document.querySelector('${sel}')).${p
  ev(`queueCell(${b},"2")`); ev('render()');
  t=ev('JSON.stringify(findTrouble().msgs)');
  ck('no complaint either way', parityRow.test(t), false);
- console.log('\n--- claims about two squares ---');
- ev('[...Array(engine.NC).keys()].forEach(k=>queueCell(k,"0"))');
- ev(`setEdgeUser(${ev('engine.H(2,1)')},"0",false)`);
- const p1=1*C+1, p2=3*C+3;
- ev(`setRelUser("${[p1,p2].sort((x,y)=>x-y).join(':')}","d")`); ev('render()');
- ck('a claim is stored', ev(`Object.keys(room.rels).length`), 1);
- ck('and drawn', ev(`document.querySelectorAll('.rel').length`)>=1, true);
- ck('an isolated claim contradicts nothing',
-    /forced/.test(ev('JSON.stringify(findTrouble().msgs)')), false);
- // pin both squares to the same side; "opposite" then cannot hold
- ev(`queueCell(${p1},"1")`); ev(`queueCell(${p2},"1")`); ev('render()');
- ck('a claim that fights the colours is caught',
-    /forced the same|disagrees/.test(ev('JSON.stringify(findTrouble().msgs)')), true);
- ev(`setRelUser("${[p1,p2].sort((x,y)=>x-y).join(':')}","0")`); ev('render()');
- ck('removing the claim settles it',
-    /forced/.test(ev('JSON.stringify(findTrouble().msgs)')), false);
- ck('claims survive a branch', (()=>{
-   $('trialStart').click();
-   ev(`setRelUser("0:1","s")`);
-   const inBranch=ev(`room.rels["0:1"]`);
-   ev('switchBranch(null)');
-   const onSheet=ev(`room.rels["0:1"]||"gone"`);
-   return inBranch+"/"+onSheet;
- })(), 's/gone');
-
  console.log(`\n${pass} passed, ${fail} failed`);
  process.exit(fail?1:0);
 })();

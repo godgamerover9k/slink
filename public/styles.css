@@ -273,10 +273,6 @@ body.weighted .seg.off{opacity:0}
   background:var(--sheet-shade);font-size:11.5px;line-height:1.55}
 .outside{fill:var(--mark-blue)}
 .inside{fill:var(--sheet)}
-.rel{stroke:var(--graphite);stroke-width:1.6;opacity:.75;stroke-linecap:round}
-.rel--s{stroke-dasharray:none}
-.rel--d{stroke-dasharray:5 3}
-.rel--tick{stroke-width:2.2;opacity:.9;stroke-dasharray:none}
 .dg{stroke:var(--graphite);stroke-width:2;stroke-linecap:round;opacity:.55}
 .fillsq{opacity:0;transition:opacity .1s}
 .fillsq.on{opacity:1}

@@ -39,7 +39,6 @@ function boardSnapshot() {
     edges: room.edges,
     cells: room.cells,
     diag: room.diag,
-    rels: Object.assign({}, room.rels),
     eo: room.eo.slice(),
   };
 }
@@ -48,11 +47,10 @@ function loadSnapshot(snap) {
   room.cells = snap.cells;
   room.eo = snap.eo.slice();
   if (typeof snap.diag === "string") room.diag = snap.diag;
-  if (snap.rels) room.rels = Object.assign({}, snap.rels);
 }
 
 /* ---- shared tree: room.tree is a flat map of id -> branch record ---- */
-var MARK_KEY = { edge: "e", cell: "k", diag: "d", rel: "r" };
+var MARK_KEY = { edge: "e", cell: "k", diag: "d" };
 var MARK_STR = { e: "edges", k: "cells", d: "diag" };
 
 function ensureTree(r) {
@@ -197,17 +195,12 @@ function deriveBoard(node) {
   let edges = base.edges,
     cells = base.cells,
     diag = base.diag;
-  const rels = Object.assign({}, base.rels || {});
   const put = (str, idx, val) => str.slice(0, idx) + val + str.slice(idx + 1);
   for (const n of chainOf(node)) {
     const mark = n.marks || {};
     for (const i in mark.e || {}) edges = put(edges, +i, mark.e[i]);
     for (const i in mark.k || {}) cells = put(cells, +i, mark.k[i]);
     for (const i in mark.d || {}) diag = put(diag, +i, mark.d[i]);
-    for (const key in mark.r || {}) {
-      if (mark.r[key] === "0") delete rels[key];
-      else rels[key] = mark.r[key];
-    }
   }
   const eo = base.eo ? base.eo.slice() : room.eo.slice();
   for (const n of chainOf(node)) {
@@ -222,7 +215,7 @@ function deriveBoard(node) {
       if (n.marks.e[i] !== "0")
         eo[+i] = owners[i] !== undefined ? owners[i] : fallback;
   }
-  return { edges, cells, diag, rels, eo };
+  return { edges, cells, diag, eo };
 }
 function recordMark(node, kind, idx, val) {
   const key = MARK_KEY[kind];
@@ -271,7 +264,7 @@ function mergeBranchRecord(into, from) {
   out.marks = { ...(into.marks || {}) };
   out.mt = { ...(into.mt || {}) };
   out.mo = { ...(into.mo || {}) };
-  for (const kind of ["e", "k", "d", "r"]) {
+  for (const kind of ["e", "k", "d"]) {
     const mine = { ...((into.marks || {})[kind] || {}) };
     const mineT = { ...((into.mt || {})[kind] || {}) };
     const mineO = { ...((into.mo || {})[kind] || {}) };
@@ -370,10 +363,10 @@ function findTrouble(st) {
   }
   /* Everything the board says about which side of the loop a square is on,
      resolved together: a drawn line means the squares either side are on
-     opposite sides, a ruled-out edge means they are on the same side, a colour
-     pins a square to one side outright, and the player's own claims tie two
-     squares together. Union-find with a parity bit, so a contradiction
-     anywhere in the chain is found rather than only between neighbours. */
+     opposite sides, a ruled-out edge means they are on the same side, and a
+     colour pins a square to one side outright. Union-find with a parity bit,
+     so a contradiction anywhere in the chain is found rather than only
+     between neighbours. */
   {
     const C = engine.C,
       N = CELL_COUNT + 1,
@@ -448,19 +441,6 @@ function findTrouble(st) {
       const col = cells ? cells[cell] : "0";
       if (col === "1") join(cell, OUT, 0, "a colour disagrees with the lines around it");
       else if (col === "2") join(cell, OUT, 1, "a colour disagrees with the lines around it");
-    }
-    const rels = (st || room).rels || {};
-    for (const key in rels) {
-      const [first, btn] = key.split(":").map(Number);
-      if (!(first >= 0 && btn >= 0 && first < CELL_COUNT && btn < CELL_COUNT)) continue;
-      join(
-        first,
-        btn,
-        rels[key] === "d" ? 1 : 0,
-        rels[key] === "d"
-          ? "two squares claimed opposite are forced the same"
-          : "two squares claimed alike are forced apart",
-      );
     }
   }
 
@@ -543,7 +523,7 @@ function settledAbove(kind, idx) {
 function markCount(node) {
   if (!node || !node.marks) return 0;
   let n = 0;
-  for (const kind of ["e", "k", "d", "r"]) n += Object.keys(node.marks[kind] || {}).length;
+  for (const kind of ["e", "k", "d"]) n += Object.keys(node.marks[kind] || {}).length;
   return n;
 }
 

@@ -6,7 +6,7 @@
 <!-- Bumped whenever this is published, so it can be told apart from a copy
      the browser is holding on to. Shown in the credits, and readable from
      the console as slinkVersion. -->
-<meta name="version" content="2026-08-21.1">
+<meta name="version" content="2026-08-21.2">
 <title>WeSLink — Slitherlink together</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -40,7 +40,6 @@
         <button class="modebar__btn" data-mode="blue">Blue</button>
         <button class="modebar__btn" data-mode="yellow">Yellow</button>
         <button class="modebar__btn" data-mode="diag">Slash</button>
-        <button class="modebar__btn" data-mode="claim">Claim</button>
         <button class="modebar__btn" data-mode="move">Move</button>
       </div>
       <div class="sheet">
@@ -154,7 +153,7 @@
           <p><b>Shift-click</b> (or right-click) marks it <b>×</b>, meaning no line here.</p>
           <p><b>Ctrl-click</b> a square to fill it <span class="swatch swatch--blue"></span>, <b>Alt-click</b> to fill it <span class="swatch swatch--yellow"></span>.</p>
           <p>Repeating the same click removes the mark. <b>Drag</b> to repeat it across the puzzle.</p>
-          <p>Hold <b>D</b> and drag corner to corner for a diagonal, <b>R</b> and drag between two squares to claim they are on the same side (shift for opposite).</p>
+          <p>Hold <b>D</b> and drag corner to corner for a diagonal.</p>
 
           <p class="toolgroup">Branches</p>
           <p>Stuck? <b>Branch</b> off and guess. Your first mark is the branch's premise, circled on the board.</p>
@@ -186,9 +185,7 @@
     <p class="done__body">
       <b><a href="https://jonathanolson.net/slitherlink/play" target="_blank" rel="noopener noreferrer">Jonathan Olson's Slitherlink</a></b>
       — two ideas are borrowed from it: reading the board by line weight rather
-      than × marks, and claiming that two squares sit on the same or opposite
-      sides of the loop without saying which is which.
-    </p>
+      than × marks.</p>
     <p class="done__body">
       Everything else — the shared puzzles, the branches, the generator and its
       solver — was built for this.
