@@ -889,14 +889,17 @@ function adoptBranch() {
   toast(`Reading through ${branchLabel(from)} as well`);
 }
 
-function acceptBranch() {
+function acceptBranch(how) {
   const node = trial;
   if (!node) return;
   const marks = node.marks || {};
   const parentId = node.parent;
+  // quiet: the caller has already explained what is happening and why
+  const quiet = !!(how && how.quiet);
 
   const trouble = findTrouble();
   if (
+    !quiet &&
     trouble.msgs.length &&
     !confirm(
       trouble.msgs[0][0].toUpperCase() +
@@ -947,14 +950,16 @@ function acceptBranch() {
   flush();
   afterSettling(parentId);
   const where = parentId ? "the branch above" : "the puzzle";
-  toast(
-    steps.length
-      ? `${steps.length} mark${steps.length === 1 ? "" : "s"} accepted onto ${where}`
-      : "That branch had nothing to accept",
-  );
+  if (!quiet)
+    toast(
+      steps.length
+        ? `${steps.length} mark${steps.length === 1 ? "" : "s"} accepted onto ${where}`
+        : "That branch had nothing to accept",
+    );
 }
 
-/* disproved: bin the branch and assert the opposite of its premise one level up */
+/* Disproved: the branch goes, and since a fork covers both cases, its twin is
+   what must be true — so the twin is accepted rather than discarded. */
 function rejectBranch(deduce) {
   const node = trial;
   if (!node) return;
@@ -962,6 +967,35 @@ function rejectBranch(deduce) {
     parentId = node.parent;
   const sound = deduce && !!player && premiseHolds(node);
   const kids = node.children.length;
+
+  /* A fork covers both cases. If one half breaks, the other is not merely
+     still possible — it is what must be true, and everything worked out
+     under it is true with it. So the broken half goes and the other is
+     accepted onto the parent, rather than both being thrown away. */
+  const twin = sound ? twinOf(node) : null;
+  // only if it really is the other half: a twin that has lost its own
+  // assumption proves nothing, and taking it as true would assert nothing
+  const other =
+    twin && twin.premise && twin.premise.kind === (player || {}).kind &&
+    twin.premise.idx === (player || {}).idx && twin.premise.to !== player.to
+      ? twin
+      : null;
+  if (other) {
+    node.twin = null;
+    other.twin = null;
+    dropSubtree(node);
+    switchBranch(other.id);
+    acceptBranch({ quiet: true });
+    toast(
+      premiseLabel(player) +
+        " ruled out — " +
+        premiseLabel(other.premise) +
+        " taken as true, with everything worked out under it",
+    );
+    afterSettling(parentId);
+    return;
+  }
+
   dropWithTwin(node);
   switchBranch(parentId);
   if (sound) {

@@ -338,7 +338,6 @@ body.touch .panhint{display:none}         /* wheel and space-drag mean nothing h
   color:var(--graphite);cursor:pointer;min-width:56px}
 .keys__key:hover{border-color:var(--graphite)}
 
-  text-transform:uppercase;color:var(--muted);opacity:.75;padding-left:8px}
 
 /* A fork: the two halves are joined by a bracket down their left edge, drawn
    with the same ink as a premise ring so it reads as one thought split in two. */
