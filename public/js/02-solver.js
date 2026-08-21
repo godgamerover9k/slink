@@ -1,3 +1,5 @@
+import { OFF, ON, UNK } from "./01-engine.js";
+
 /* ============================================================
    2. Solver — used for generation, hints and error checks
    ============================================================ */
@@ -412,3 +414,8 @@ function Solver(engine) {
   }
   return { solve };
 }
+
+/* what other parts of the program use from here */
+export {
+  Solver,
+};

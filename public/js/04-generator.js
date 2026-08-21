@@ -1,3 +1,7 @@
+import { Engine, OFF, ON } from "./01-engine.js";
+import { Solver } from "./02-solver.js";
+import { countSolutions } from "./03-sat.js";
+
 /* ============================================================
    3. Generator — a random simply connected blob makes the loop
    ============================================================ */
@@ -180,7 +184,7 @@ function cluesFromLoop(engine, edges) {
   return out;
 }
 
-const DIFFS = {
+var DIFFS = {
   gentle: { label: "Gentle", frac: 0.55, base: 1200 },
   standard: { label: "Standard", frac: 0.85, base: 4000 },
   tough: { label: "Tough", frac: 1.0, base: 15000 },
@@ -317,3 +321,15 @@ function generateAsync(R, C, diffKey, onProgress) {
     step();
   });
 }
+
+/* what other parts of the program use from here */
+export {
+  DIFFS,
+  cluesFromLoop,
+  generateAsync,
+  growLoop,
+  loopEdges,
+  perimeter,
+  regionValid,
+  shuffle,
+};

@@ -1,7 +1,16 @@
+import { Engine } from "./01-engine.js";
+import { Solver } from "./02-solver.js";
+import { DIFFS, generateAsync } from "./04-generator.js";
+import { ME_KEY, POLL_MS, ROOM_KEY, adopt, blankRoom, engine, flush, indexTimer, lastWrite, me, mergePlayers, now, pending, poll, pollTimer, randCode, recent, room, setEngine, setIndexTimer, setLastWrite, setPending, setPollTimer, setRecent, setRoom, setSolvedShown, solvedShown, store, touchMe, updateIndex } from "./05-room-state.js";
+import { buildBoard, penSlot, render } from "./06-board.js";
+import { redoStack, setRedoStack, setUndoStack, undoStack } from "./07-input.js";
+import { boardSnapshot, clearBranches, syncTreeFromRoom, trunk } from "./08-branches.js";
+import { loadedFrom, setLoadedFrom, toast } from "./09-tools.js";
+
 /* ============================================================
    8. Setup screen
    ============================================================ */
-const SIZES = [
+var SIZES = [
   [5, 5],
   [7, 7],
   [10, 10],
@@ -9,17 +18,17 @@ const SIZES = [
   [20, 20],
   [30, 30],
 ];
-const MIN_DIM = 2,
+var MIN_DIM = 2,
   MAX_DIM = 100;
-let pickDiff = "standard",
+var pickDiff = "standard",
   keepRoomOnClose = false,
   generating = false;
 
-const veil = document.getElementById("veil");
-const errEl = document.getElementById("err");
-const rowsIn = document.getElementById("rowsIn");
-const colsIn = document.getElementById("colsIn");
-const sizeHint = document.getElementById("sizeHint");
+var veil = document.getElementById("veil");
+var errEl = document.getElementById("err");
+var rowsIn = document.getElementById("rowsIn");
+var colsIn = document.getElementById("colsIn");
+var sizeHint = document.getElementById("sizeHint");
 
 function rawDims() {
   return [parseInt(rowsIn.value, 10), parseInt(colsIn.value, 10)];
@@ -88,20 +97,20 @@ function refreshSize() {
   // never re-enable mid-build: changing a setting used to start a second one
   document.getElementById("createBtn").disabled = !ok || generating;
 }
-rowsIn.addEventListener("input", refreshSize);
-colsIn.addEventListener("input", refreshSize);
 
-const genEls = {
+
+
+var genEls = {
   box: document.getElementById("gen"),
   fill: document.getElementById("genFill"),
   stage: document.getElementById("genStage"),
   pct: document.getElementById("genPct"),
   note: document.getElementById("genNote"),
 };
-let genT0 = 0,
+var genT0 = 0,
   genPaint = 0;
 
-const elapsed = ms => {
+var elapsed = ms => {
   const s = Math.round(ms / 1000);
   return s < 60 ? s + "s" : Math.floor(s / 60) + "m " + String(s % 60).padStart(2, "0") + "s";
 };
@@ -210,8 +219,8 @@ function closeSetup() {
   veil.hidden = true;
 }
 
-document.getElementById("tabNew").onclick = () => switchTab(true);
-document.getElementById("tabJoin").onclick = () => switchTab(false);
+
+
 function switchTab(isNew) {
   document.getElementById("tabNew").setAttribute("aria-selected", isNew);
   document.getElementById("tabJoin").setAttribute("aria-selected", !isNew);
@@ -255,13 +264,13 @@ async function openPuzzle(puz) {
   }
   if (restoreTree) fresh.tree = restoreTree;
   if (keepRoomOnClose && room) mergePlayers(fresh.players, room.players);
-  room = fresh;
-  engine = Engine(puz.R, puz.C);
-  pending = [];
-  recent = [];
-  undoStack = [];
-  redoStack = [];
-  solvedShown = false;
+  setRoom(fresh);
+  setEngine(Engine(puz.R, puz.C));
+  setPending([]);
+  setRecent([]);
+  setUndoStack([]);
+  setRedoStack([]);
+  setSolvedShown(false);
   clearBranches();
   touchMe(room);
   buildBoard();
@@ -272,7 +281,7 @@ async function openPuzzle(puz) {
   render();
   enterRoom(code);
   await store.set(ROOM_KEY(code), JSON.stringify(room), true);
-  lastWrite = Date.now();
+  setLastWrite(Date.now());
   updateIndex();
   closeSetup();
   if (!keepRoomOnClose)
@@ -284,7 +293,7 @@ async function openPuzzle(puz) {
 }
 
 /* ---- importing packs built by slink-gen ---- */
-const PACK_MAX = 200;
+var PACK_MAX = 200;
 
 function readPuzzle(opt, i) {
   const where = `puzzle ${i + 1}`;
@@ -393,7 +402,7 @@ function showPack(pack) {
 
 /* The packaged binaries are far too big to live inside this page, so it looks for
    them next to wherever the page is served from and links only if they exist. */
-const EXE_NAMES = {
+var EXE_NAMES = {
   win: "slink-gen-win-x64.exe",
   mac: "slink-gen-macos-arm64",
   macIntel: "slink-gen-macos-x64",
@@ -430,96 +439,17 @@ async function offerExe() {
   }
 }
 
-document.getElementById("getGen").onclick = () => {
-  // served as a file rather than carried inside the page, which kept 100KB of
-  // generator in every page load for the few people who ever download it
-  const anchor = document.createElement("a");
-  anchor.href = "download/slink-gen.js";
-  anchor.download = "slink-gen.js";
-  anchor.click();
-  toast("Needs Node 18+. Run: node slink-gen.js --help");
-};
 
-document.getElementById("importBtn").onclick = async () => {
-  if (window.showOpenFilePicker) {
-    try {
-      const [handle] = await window.showOpenFilePicker({
-        types: [{ description: "Slitherlink", accept: { "application/json": [".json"] } }],
-      });
-      const file = await handle.getFile();
-      const pack = readPack(await file.text());
-      loadedFrom = { name: file.name, handle: handle };
-      showPack(pack);
-      if (pack.puzzles.length === 1) document.querySelector("#packList .pk").click();
-      return;
-    } catch (edge) {
-      if (edge && edge.name === "AbortError") return; // they closed the picker
-      errEl.textContent = edge.message || "Couldn't read that file.";
-      return;
-    }
-  }
-  document.getElementById("packIn").click();
-};
-document.getElementById("packIn").onchange = async edge => {
-  const file = edge.target.files && edge.target.files[0];
-  edge.target.value = "";
-  if (!file) return;
-  try {
-    const pack = readPack(await file.text());
-    loadedFrom = { name: file.name || "the file you opened", handle: null };
-    showPack(pack);
-    if (pack.puzzles.length === 1) document.querySelector("#packList .pk").click();
-  } catch (err) {
-    document.getElementById("packList").hidden = true;
-    errEl.textContent = err.message || "Couldn't read that pack.";
-  }
-};
 
-(function watchOffline() {
-  const box = document.getElementById("optOffline");
-  if (box) box.onchange = () => openSetup(false);
-})();
 
-document.getElementById("createBtn").onclick = async () => {
-  const btn = document.getElementById("createBtn");
-  if (generating) return;
-  if (!dimsOk()) {
-    errEl.textContent = `Rows and columns each need to be between ${MIN_DIM} and ${MAX_DIM}.`;
-    return;
-  }
-  const [R, C] = rawDims();
-  /* Decided here rather than later: an offline puzzle must never touch shared
-     storage at all, so the choice has to be made before anything is written. */
-  const wantOffline = !!(document.getElementById("optOffline") || {}).checked;
-  if (wantOffline !== store.offline) {
-    store.offline = wantOffline;
-    await store.probe();
-    soloNotice();
-  }
-  await saveMe();
-  generating = true;
-  btn.disabled = true;
-  errEl.textContent = "";
-  btn.textContent = "Plotting a puzzle…";
-  genStart();
-  try {
-    const puz = await generateAsync(R, C, pickDiff, genUpdate);
-    puz.diff = pickDiff;
-    await openPuzzle(puz);
-  } catch (edge) {
-    errEl.textContent = edge.message || "Something went wrong building that puzzle.";
-  }
-  generating = false;
-  genStop();
-  btn.textContent = "Generate the puzzle";
-  refreshSize();
-};
 
-document.getElementById("joinBtn").onclick = () =>
-  joinRoom(document.getElementById("codeIn").value);
-document.getElementById("codeIn").addEventListener("keydown", edge => {
-  if (edge.key === "Enter") document.getElementById("joinBtn").click();
-});
+
+
+
+
+
+
+
 
 async function joinRoom(codeRaw) {
   const code = (codeRaw || "").trim().toUpperCase();
@@ -546,9 +476,9 @@ async function joinRoom(codeRaw) {
     errEl.textContent = "That puzzle couldn't be read.";
     return false;
   }
-  room = null;
-  undoStack = [];
-  redoStack = [];
+  setRoom(null);
+  setUndoStack([]);
+  setRedoStack([]);
   clearBranches();
   adopt(data);
   touchMe(room);
@@ -564,8 +494,8 @@ async function joinRoom(codeRaw) {
    too when they are set, so one link is all anyone needs. */
 /* The address people should be given, whatever address this page was opened
    at. Anyone still on the old host gets a link to the new one. */
-const HOME = "https://weslither.link";
-const OLD_HOSTS = /(^|\.)onrender\.com$/i;
+var HOME = "https://weslither.link";
+var OLD_HOSTS = /(^|\.)onrender\.com$/i;
 
 function canonicalBase() {
   try {
@@ -661,7 +591,7 @@ function soloNotice() {
 }
 
 /* remember the sheet you were on and pick it back up next time */
-const LAST_KEY = "sl:last";
+var LAST_KEY = "sl:last";
 /* Offers the puzzle you were last on, as a choice rather than a redirection.
    Nothing happens until it is pressed. */
 async function offerLast() {
@@ -694,9 +624,9 @@ async function resumeLast() {
     if (!res) return false;
     const saved = JSON.parse(res.value);
     if (!saved || !saved.room) return false;
-    room = null;
-    undoStack = [];
-    redoStack = [];
+    setRoom(null);
+    setUndoStack([]);
+    setRedoStack([]);
     clearBranches();
     adopt(saved.room);
     if (!room) return false;
@@ -746,8 +676,158 @@ function enterRoom(code) {
   showRoomLink(code);
   clearInterval(pollTimer);
   clearInterval(indexTimer);
-  pollTimer = setInterval(poll, POLL_MS);
-  indexTimer = setInterval(() => {
+  setPollTimer(setInterval(poll, POLL_MS));
+  setIndexTimer(setInterval(() => {
     if (room) updateIndex();
-  }, 60000);
+  }, 60000));
 }
+
+
+/* Run once the whole program is loaded, so nothing here reaches for a
+   part that has not been set up yet. */
+queueMicrotask(() => {
+  rowsIn.addEventListener("input", refreshSize);
+  colsIn.addEventListener("input", refreshSize);
+  document.getElementById("tabNew").onclick = () => switchTab(true);
+  document.getElementById("tabJoin").onclick = () => switchTab(false);
+  document.getElementById("getGen").onclick = () => {
+    // served as a file rather than carried inside the page, which kept 100KB of
+    // generator in every page load for the few people who ever download it
+    const anchor = document.createElement("a");
+    anchor.href = "download/slink-gen.js";
+    anchor.download = "slink-gen.js";
+    anchor.click();
+    toast("Needs Node 18+. Run: node slink-gen.js --help");
+  };
+  document.getElementById("importBtn").onclick = async () => {
+    if (window.showOpenFilePicker) {
+      try {
+        const [handle] = await window.showOpenFilePicker({
+          types: [{ description: "Slitherlink", accept: { "application/json": [".json"] } }],
+        });
+        const file = await handle.getFile();
+        const pack = readPack(await file.text());
+        setLoadedFrom({ name: file.name, handle: handle });
+        showPack(pack);
+        if (pack.puzzles.length === 1) document.querySelector("#packList .pk").click();
+        return;
+      } catch (edge) {
+        if (edge && edge.name === "AbortError") return; // they closed the picker
+        errEl.textContent = edge.message || "Couldn't read that file.";
+        return;
+      }
+    }
+    document.getElementById("packIn").click();
+  };
+  document.getElementById("packIn").onchange = async edge => {
+    const file = edge.target.files && edge.target.files[0];
+    edge.target.value = "";
+    if (!file) return;
+    try {
+      const pack = readPack(await file.text());
+      setLoadedFrom({ name: file.name || "the file you opened", handle: null });
+      showPack(pack);
+      if (pack.puzzles.length === 1) document.querySelector("#packList .pk").click();
+    } catch (err) {
+      document.getElementById("packList").hidden = true;
+      errEl.textContent = err.message || "Couldn't read that pack.";
+    }
+  };
+  (function watchOffline() {
+    const box = document.getElementById("optOffline");
+    if (box) box.onchange = () => openSetup(false);
+  })();
+  document.getElementById("createBtn").onclick = async () => {
+    const btn = document.getElementById("createBtn");
+    if (generating) return;
+    if (!dimsOk()) {
+      errEl.textContent = `Rows and columns each need to be between ${MIN_DIM} and ${MAX_DIM}.`;
+      return;
+    }
+    const [R, C] = rawDims();
+    /* Decided here rather than later: an offline puzzle must never touch shared
+       storage at all, so the choice has to be made before anything is written. */
+    const wantOffline = !!(document.getElementById("optOffline") || {}).checked;
+    if (wantOffline !== store.offline) {
+      store.offline = wantOffline;
+      await store.probe();
+      soloNotice();
+    }
+    await saveMe();
+    generating = true;
+    btn.disabled = true;
+    errEl.textContent = "";
+    btn.textContent = "Plotting a puzzle…";
+    genStart();
+    try {
+      const puz = await generateAsync(R, C, pickDiff, genUpdate);
+      puz.diff = pickDiff;
+      await openPuzzle(puz);
+    } catch (edge) {
+      errEl.textContent = edge.message || "Something went wrong building that puzzle.";
+    }
+    generating = false;
+    genStop();
+    btn.textContent = "Generate the puzzle";
+    refreshSize();
+  };
+  document.getElementById("joinBtn").onclick = () =>
+    joinRoom(document.getElementById("codeIn").value);
+  document.getElementById("codeIn").addEventListener("keydown", edge => {
+    if (edge.key === "Enter") document.getElementById("joinBtn").click();
+  });
+});
+
+/* what other parts of the program use from here */
+export {
+  EXE_NAMES,
+  HOME,
+  LAST_KEY,
+  MAX_DIM,
+  MIN_DIM,
+  OLD_HOSTS,
+  PACK_MAX,
+  SIZES,
+  buildChips,
+  canonicalBase,
+  closeSetup,
+  colsIn,
+  dimsOk,
+  elapsed,
+  enterRoom,
+  errEl,
+  genEls,
+  genPaint,
+  genStart,
+  genStop,
+  genT0,
+  genUpdate,
+  generating,
+  greeting,
+  joinRoom,
+  keepRoomOnClose,
+  offerExe,
+  offerLast,
+  openPuzzle,
+  openSetup,
+  pickDiff,
+  rawDims,
+  readName,
+  readPack,
+  readPuzzle,
+  refreshSize,
+  rememberLast,
+  resumeLast,
+  roomLink,
+  rowsIn,
+  saveMe,
+  setDims,
+  showPack,
+  showRoomLink,
+  sizeHint,
+  soloNotice,
+  switchTab,
+  veil,
+  vetPuzzle,
+  wireServerBox,
+};

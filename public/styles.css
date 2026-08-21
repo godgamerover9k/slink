@@ -342,8 +342,15 @@ body.touch .panhint{display:none}         /* wheel and space-drag mean nothing h
   color:var(--graphite);cursor:pointer;min-width:56px}
 .keys__key:hover{border-color:var(--graphite)}
 
-/* a guess and its opposite, joined down the side */
-.tw--paired{border-left:2px solid var(--rule);margin-left:-2px}
-.tw--paired:hover{border-left-color:var(--muted)}
-.tw__pair{margin-left:auto;font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;
   text-transform:uppercase;color:var(--muted);opacity:.75;padding-left:8px}
+
+/* A fork: the two halves are joined by a bracket down their left edge, drawn
+   with the same ink as a premise ring so it reads as one thought split in two. */
+.tw--paired{position:relative;padding-left:16px}
+.tw--paired::before{content:"";position:absolute;left:5px;width:7px;
+  border-left:2px solid var(--muted);opacity:.85}
+.tw--pairTop::before{top:50%;bottom:-2px;border-top:2px solid var(--muted);
+  border-top-left-radius:4px}
+.tw--pairFoot::before{top:-2px;bottom:50%;border-bottom:2px solid var(--muted);
+  border-bottom-left-radius:4px}
+.tw--paired[aria-current="true"]::before{border-color:var(--graphite);opacity:1}

@@ -1,7 +1,7 @@
 /* ============================================================
    1. Engine — grid geometry
    ============================================================ */
-const UNK = 0,
+var UNK = 0,
   ON = 1,
   OFF = 2;
 
@@ -105,3 +105,11 @@ function Engine(R, C) {
     aff,
   };
 }
+
+/* what other parts of the program use from here */
+export {
+  Engine,
+  OFF,
+  ON,
+  UNK,
+};

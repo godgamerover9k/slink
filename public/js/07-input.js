@@ -1,18 +1,23 @@
+import { engine, ensureCells, queueCell, queueDiag, queueOp, queueRel, relKey, room } from "./05-room-state.js";
+import { CELL, PAD, board, edgeAt, render } from "./06-board.js";
+import { createBranch, propagateDown } from "./08-branches.js";
+import { veil } from "./10-setup.js";
+
 /* ============================================================
    6. Input — every mark toggles: the same click twice clears it.
       plain = line, shift or right-click = ×,
       ctrl = blue square, alt = yellow square. Drag repeats.
    ============================================================ */
-const LINE = "1",
+var LINE = "1",
   XMARK = "2",
   BLANK = "0";
-const BLUE = "1",
+var BLUE = "1",
   YELLOW = "2",
   NOFILL = "0";
 /* a mark toggles off when it's already there, otherwise it replaces what's there */
-const toggleTo = (current, want) => (current === want ? BLANK : want);
+var toggleTo = (current, want) => (current === want ? BLANK : want);
 
-let dragVal = null,
+var dragVal = null,
   dragWant = null,
   dragSeen = null,
   dragMode = null,
@@ -20,28 +25,21 @@ let dragVal = null,
   stroke = null,
   undoStack = [],
   redoStack = [];
-let dragLast = null,
+var dragLast = null,
   dragFrom = null,
   diagHeld = false,
   relHeld = false,
   relFrom = -1,
   relWantSame = false;
-let diagStart = null;
+var diagStart = null;
 
 /* Which key does what. Held down rather than pressed, so these are the keys
    you lean on while dragging. Changed in the tools panel and remembered per
    browser; the defaults are what they always were. */
-const KEY_DEFAULTS = { diagonal: "d", claim: "r", branch: "b" };
-const keyBinds = { ...KEY_DEFAULTS };
+var KEY_DEFAULTS = { diagonal: "d", claim: "r", branch: "b" };
+var keyBinds = { ...KEY_DEFAULTS };
 
-(function loadKeys() {
-  try {
-    const saved = JSON.parse(window.localStorage.getItem("sl:keys") || "{}");
-    for (const action in KEY_DEFAULTS)
-      if (typeof saved[action] === "string" && saved[action].length === 1)
-        keyBinds[action] = saved[action].toLowerCase();
-  } catch (e) {}
-})();
+
 
 function saveKeys() {
   try {
@@ -61,28 +59,13 @@ function setKeyBind(action, key) {
   return true;
 }
 
-const isKey = (ev, action) => (ev.key || "").toLowerCase() === keyBinds[action];
+var isKey = (ev, action) => (ev.key || "").toLowerCase() === keyBinds[action];
 
-window.addEventListener("keydown", ev => {
-  if (ev.target && /input|textarea/i.test(ev.target.tagName)) return;
-  if (isKey(ev, "claim")) relHeld = true;
-  if (isKey(ev, "diagonal")) diagHeld = true;
-  // pressed rather than held: start a branch
-  if (isKey(ev, "branch") && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
-    ev.preventDefault();
-    if (typeof createBranch === "function") createBranch();
-  }
-});
-window.addEventListener("keyup", ev => {
-  if (isKey(ev, "claim")) relHeld = false;
-  if (isKey(ev, "diagonal")) diagHeld = false;
-});
-window.addEventListener("blur", () => {
-  relHeld = false;
-  diagHeld = false;
-});
 
-let view = { x: 0, y: 0, w: 0, h: 0 },
+
+
+
+var view = { x: 0, y: 0, w: 0, h: 0 },
   viewFull = { w: 0, h: 0 };
 
 function applyView() {
@@ -201,7 +184,7 @@ function vertAt(x, y) {
   const r = Math.min(engine.R, Math.max(0, Math.round((y - PAD) / CELL)));
   return { r, c };
 }
-const edgeBetween = (a, btn) => {
+var edgeBetween = (a, btn) => {
   if (a.r === btn.r && Math.abs(a.c - btn.c) === 1) return engine.H(a.r, Math.min(a.c, btn.c));
   if (a.c === btn.c && Math.abs(a.r - btn.r) === 1) return engine.V(Math.min(a.r, btn.r), a.c);
   return -1;
@@ -240,8 +223,8 @@ function dragTo(dot) {
 /* On a phone there are no modifier keys, so the same choices are made by a
    bar of buttons instead. "draw" means behave exactly as a mouse does, so
    nothing about the desktop controls changes. */
-let touchMode = "draw";
-let touchesDown = 0;      // fingers on the board right now
+var touchMode = "draw";
+var touchesDown = 0;      // fingers on the board right now
 
 function fillWanted(ev) {
   if (touchMode === "blue") return BLUE;
@@ -256,173 +239,29 @@ function wantsX(ev) {
 }
 
 /* ---- zoom and pan: needed once a sheet is bigger than the window ---- */
-let panning = null,
+var panning = null,
   spaceHeld = false;
-window.addEventListener("keydown", ev => {
-  if (ev.code === "Space" && !/input|textarea/i.test((ev.target || {}).tagName || "")) {
-    spaceHeld = true;
-  }
-  if (ev.key === "0" && (ev.ctrlKey || ev.metaKey)) {
-    ev.preventDefault();
-    resetView();
-  }
-});
-window.addEventListener("keyup", ev => {
-  if (ev.code === "Space") spaceHeld = false;
-});
+
+
 
 /* Wheel scrolls the sheet, which is what a wheel normally does. Zooming is
    ctrl/cmd + wheel, matching every map and drawing tool. */
-board.addEventListener(
-  "wheel",
-  ev => {
-    if (!room) return;
-    ev.preventDefault();
-    if (ev.ctrlKey || ev.metaKey) {
-      const pt = svgPoint(ev);
-      zoomAt(pt.x, pt.y, ev.deltaY < 0 ? 1.12 : 1 / 1.12);
-      return;
-    }
-    const step = view.w / viewFull.w;
-    if (ev.shiftKey) {
-      view.x += ev.deltaY * step;
-    } else {
-      view.x += ev.deltaX * step;
-      view.y += ev.deltaY * step;
-    }
-    applyView();
-  },
-  { passive: false },
-);
+
 
 /* arrow keys nudge the sheet when it is bigger than the window */
-window.addEventListener("keydown", ev => {
-  if (!room || !veil.hidden) return; // only while the setup card is closed
-  if (/input|textarea/i.test((ev.target || {}).tagName || "")) return;
-  const NUDGE = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[
-    ev.key
-  ];
-  if (!NUDGE || view.w >= viewFull.w - 0.5) return;
-  ev.preventDefault();
-  view.x += NUDGE[0] * view.w * 0.15;
-  view.y += NUDGE[1] * view.h * 0.15;
-  applyView();
-});
+
 
 /* middle button, or space held, drags the sheet around */
-board.addEventListener(
-  "pointerdown",
-  ev => {
-    if (!room) return;
-    if (ev.button !== 1 && !spaceHeld) return;
-    ev.preventDefault();
-    board.setPointerCapture(ev.pointerId);
-    panning = { x: ev.clientX, y: ev.clientY };
-  },
-  true,
-);
-board.addEventListener(
-  "pointermove",
-  ev => {
-    if (!panning) return;
-    const r = board.getBoundingClientRect();
-    view.x -= ((ev.clientX - panning.x) / r.width) * view.w;
-    view.y -= ((ev.clientY - panning.y) / r.height) * view.h;
-    panning = { x: ev.clientX, y: ev.clientY };
-    applyView();
-  },
-  true,
-);
-const endPan = () => {
+
+
+var endPan = () => {
   panning = null;
 };
-board.addEventListener("pointerup", endPan, true);
-board.addEventListener("pointercancel", endPan, true);
 
-board.addEventListener("contextmenu", ev => ev.preventDefault());
-board.addEventListener("pointerdown", ev => {
-  /* Finishing does not put the pens away. People carry on tidying up, trying
-     other things, or comparing branches after the loop closes. */
-  if (!room) return;
-  if (panning || spaceHeld || ev.button === 1) return;
-  const pt = svgPoint(ev);
 
-  if (touchMode === "move") return;      // one finger pans instead of drawing
-  // a second finger is the start of a pinch, not another pen
-  if (ev.pointerType === "touch" && touchesDown > 1) return;
 
-  if (relHeld || touchMode === "claim") {
-    // claim about two squares
-    const cell = cellAt(pt.x, pt.y);
-    if (cell < 0) return;
-    ev.preventDefault();
-    board.setPointerCapture(ev.pointerId);
-    relFrom = cell;
-    dragMode = "rel";
-    relWantSame = ev.shiftKey;
-    return;
-  }
 
-  if (diagHeld || touchMode === "diag") {
-    /* A diagonal is drawn corner to corner, not clicked: start near a dot and
-       finish near the opposite one. The nearest dot is used, so it does not
-       have to be hit exactly. */
-    ev.preventDefault();
-    board.setPointerCapture(ev.pointerId);
-    ensureCells(room);
-    redoStack = [];
-    stroke = [];
-    dragSeen = new Set();
-    dragFrom = pt;
-    dragLast = pt;
-    diagStart = vertAt(pt.x, pt.y);
-    dragMode = "diag";
-    return;
-  }
 
-  const paint = fillWanted(ev);
-
-  if (paint) {
-    // colour a square
-    const cell = cellAt(pt.x, pt.y);
-    if (cell < 0) return;
-    ev.preventDefault();
-    board.setPointerCapture(ev.pointerId);
-    ensureCells(room);
-    const val = toggleTo(room.cells[cell], paint);
-    dragMode = "cell";
-    dragVal = val;
-    dragSeen = new Set([cell]);
-    stroke = [];
-    redoStack = [];
-    dragLast = pt;
-    setCellUser(cell, val, true);
-    return;
-  }
-
-  // Pressing right on a dot is ambiguous — up to four edges are equally close,
-  // and picking one at random is what left a stray stub across a sweep. Wait
-  // for the drag to say which way it is going instead.
-  const dot = vertAt(pt.x, pt.y);
-  const onDot = Math.hypot(pt.x - (PAD + dot.c * CELL), pt.y - (PAD + dot.r * CELL)) < CELL * 0.22;
-  const i = onDot ? -1 : edgeAt(pt.x, pt.y);
-  if (i < 0 && !onDot) return;
-  ev.preventDefault();
-  board.setPointerCapture(ev.pointerId);
-  dragWant = wantsX(ev) ? XMARK : LINE;
-  dragMode = "edge";
-  dragSeen = new Set();
-  dragVert = dot;
-  stroke = [];
-  dragVal = null;
-  redoStack = [];
-  dragLast = pt;
-  if (i >= 0) {
-    dragVal = toggleTo(room.edges[i], dragWant);
-    dragSeen.add(i);
-    setEdgeUser(i, dragVal, true);
-  }
-});
 /* Pointer events arrive far apart when the mouse moves quickly, so walk the
    straight line between the last position and this one. Without this a fast
    sweep only marks the few segments an event happened to land on. */
@@ -437,27 +276,8 @@ function alongDrag(to, fn) {
   dragLast = to;
 }
 
-board.addEventListener("pointermove", ev => {
-  if (panning) return;
-  if (dragMode === null || !room) return;
-  const pt = svgPoint(ev);
 
-  if (dragMode === "diag") {
-    dragLast = pt;
-    return; // decided when the drag ends
-  }
-  if (dragMode === "cell") {
-    alongDrag(pt, (x, y) => {
-      const cell = cellAt(x, y);
-      if (cell < 0 || dragSeen.has(cell)) return;
-      dragSeen.add(cell);
-      setCellUser(cell, dragVal, true);
-    });
-    return;
-  }
-  alongDrag(pt, (x, y) => dragTo(vertAt(x, y)));
-});
-const endDrag = ev => {
+var endDrag = ev => {
   if (dragMode === "diag") {
     const pt = ev && ev.clientX !== undefined ? svgPoint(ev) : dragLast;
     const to = pt ? vertAt(pt.x, pt.y) : null;
@@ -511,21 +331,11 @@ const endDrag = ev => {
   dragLast = null;
   dragFrom = null;
 };
-board.addEventListener("pointerup", endDrag);
-board.addEventListener("pointercancel", endDrag);
-window.addEventListener("blur", endDrag);
 
-document.addEventListener("keydown", ev => {
-  if (ev.target.tagName === "INPUT") return;
-  const cell = ev.key.toLowerCase();
-  if ((ev.metaKey || ev.ctrlKey) && cell === "z") {
-    ev.preventDefault();
-    ev.shiftKey ? doRedo() : doUndo();
-  } else if ((ev.metaKey || ev.ctrlKey) && cell === "y") {
-    ev.preventDefault();
-    doRedo();
-  }
-});
+
+
+
+
 
 function doUndo() {
   const grp = undoStack.pop();
@@ -546,91 +356,387 @@ function doRedo() {
    A phone has no shift, ctrl or alt, so the choices those make are offered as
    buttons instead. Everything else — the same taps, the same drags — behaves
    as it always did. */
-(function wireTouch() {
-  const bar = document.getElementById("modebar");
-  if (!bar) return;
 
-  const coarse =
-    (window.matchMedia && matchMedia("(pointer: coarse)").matches) ||
-    (navigator.maxTouchPoints || 0) > 0;
-  if (coarse) {
-    bar.hidden = false;
-    document.body.classList.add("touch");
-  }
-
-  bar.querySelectorAll(".modebar__btn").forEach(btn => {
-    btn.onclick = () => {
-      touchMode = btn.dataset.mode;
-      bar.querySelectorAll(".modebar__btn").forEach(other =>
-        other.classList.toggle("is-on", other === btn),
-      );
-    };
-  });
-})();
 
 /* Two fingers pinch to zoom and drag the board about. While two are down
    nothing is drawn, so a pinch never leaves marks behind. */
-(function wirePinch() {
-  const board = document.getElementById("board");
-  if (!board) return;
-  const down = new Map();
-  let start = null;
-  let marksBefore = 0;
 
-  const spread = () => {
-    const [a, b] = [...down.values()];
-    return {
-      dist: Math.hypot(a.x - b.x, a.y - b.y),
-      mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
-    };
-  };
 
-  board.addEventListener(
-    "pointerdown",
-    ev => {
-      if (ev.pointerType !== "touch") return;
-      if (down.size === 0) marksBefore = undoStack.length;
-      down.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
-      touchesDown = down.size;
-      if (down.size === 2) {
-        const wasDrawing = !!dragMode || !!stroke;
-        dragMode = null;          // whatever was being drawn, stop
-        stroke = null;
-        /* If the first finger drew something before the second landed, take it
-           back — a pinch is not a mark. Only what this gesture added: an
-           earlier mark is not ours to undo. */
-        if (wasDrawing) while (undoStack.length > marksBefore) doUndo();
-        start = { ...spread(), view: { ...view } };
-      }
-    },
-    true,
-  );
 
-  board.addEventListener(
-    "pointermove",
-    ev => {
-      if (!down.has(ev.pointerId)) return;
-      down.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
-      if (down.size !== 2 || !start) return;
+/* Run once the whole program is loaded, so nothing here reaches for a
+   part that has not been set up yet. */
+queueMicrotask(() => {
+  (function loadKeys() {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem("sl:keys") || "{}");
+      for (const action in KEY_DEFAULTS)
+        if (typeof saved[action] === "string" && saved[action].length === 1)
+          keyBinds[action] = saved[action].toLowerCase();
+    } catch (e) {}
+  })();
+  window.addEventListener("keydown", ev => {
+    if (ev.target && /input|textarea/i.test(ev.target.tagName)) return;
+    if (isKey(ev, "claim")) relHeld = true;
+    if (isKey(ev, "diagonal")) diagHeld = true;
+    // pressed rather than held: start a branch
+    if (isKey(ev, "branch") && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
       ev.preventDefault();
-      const now2 = spread();
-      const scale = now2.dist > 0 && start.dist > 0 ? start.dist / now2.dist : 1;
-      const box = board.getBoundingClientRect();
-      view.w = start.view.w * scale;
-      view.h = start.view.h * scale;
-      // keep the point between the fingers under the fingers
-      view.x = start.view.x + ((start.mid.x - now2.mid.x) / box.width) * view.w;
-      view.y = start.view.y + ((start.mid.y - now2.mid.y) / box.height) * view.h;
+      if (typeof createBranch === "function") createBranch();
+    }
+  });
+  window.addEventListener("keyup", ev => {
+    if (isKey(ev, "claim")) relHeld = false;
+    if (isKey(ev, "diagonal")) diagHeld = false;
+  });
+  window.addEventListener("blur", () => {
+    relHeld = false;
+    diagHeld = false;
+  });
+  window.addEventListener("keydown", ev => {
+    if (ev.code === "Space" && !/input|textarea/i.test((ev.target || {}).tagName || "")) {
+      spaceHeld = true;
+    }
+    if (ev.key === "0" && (ev.ctrlKey || ev.metaKey)) {
+      ev.preventDefault();
+      resetView();
+    }
+  });
+  window.addEventListener("keyup", ev => {
+    if (ev.code === "Space") spaceHeld = false;
+  });
+  board.addEventListener(
+    "wheel",
+    ev => {
+      if (!room) return;
+      ev.preventDefault();
+      if (ev.ctrlKey || ev.metaKey) {
+        const pt = svgPoint(ev);
+        zoomAt(pt.x, pt.y, ev.deltaY < 0 ? 1.12 : 1 / 1.12);
+        return;
+      }
+      const step = view.w / viewFull.w;
+      if (ev.shiftKey) {
+        view.x += ev.deltaY * step;
+      } else {
+        view.x += ev.deltaX * step;
+        view.y += ev.deltaY * step;
+      }
       applyView();
     },
     { passive: false },
   );
+  window.addEventListener("keydown", ev => {
+    if (!room || !veil.hidden) return; // only while the setup card is closed
+    if (/input|textarea/i.test((ev.target || {}).tagName || "")) return;
+    const NUDGE = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[
+      ev.key
+    ];
+    if (!NUDGE || view.w >= viewFull.w - 0.5) return;
+    ev.preventDefault();
+    view.x += NUDGE[0] * view.w * 0.15;
+    view.y += NUDGE[1] * view.h * 0.15;
+    applyView();
+  });
+  board.addEventListener(
+    "pointerdown",
+    ev => {
+      if (!room) return;
+      if (ev.button !== 1 && !spaceHeld) return;
+      ev.preventDefault();
+      board.setPointerCapture(ev.pointerId);
+      panning = { x: ev.clientX, y: ev.clientY };
+    },
+    true,
+  );
+  board.addEventListener(
+    "pointermove",
+    ev => {
+      if (!panning) return;
+      const r = board.getBoundingClientRect();
+      view.x -= ((ev.clientX - panning.x) / r.width) * view.w;
+      view.y -= ((ev.clientY - panning.y) / r.height) * view.h;
+      panning = { x: ev.clientX, y: ev.clientY };
+      applyView();
+    },
+    true,
+  );
+  board.addEventListener("pointerup", endPan, true);
+  board.addEventListener("pointercancel", endPan, true);
+  board.addEventListener("contextmenu", ev => ev.preventDefault());
+  board.addEventListener("pointerdown", ev => {
+    /* Finishing does not put the pens away. People carry on tidying up, trying
+       other things, or comparing branches after the loop closes. */
+    if (!room) return;
+    if (panning || spaceHeld || ev.button === 1) return;
+    const pt = svgPoint(ev);
+  
+    if (touchMode === "move") return;      // one finger pans instead of drawing
+    // a second finger is the start of a pinch, not another pen
+    if (ev.pointerType === "touch" && touchesDown > 1) return;
+  
+    if (relHeld || touchMode === "claim") {
+      // claim about two squares
+      const cell = cellAt(pt.x, pt.y);
+      if (cell < 0) return;
+      ev.preventDefault();
+      board.setPointerCapture(ev.pointerId);
+      relFrom = cell;
+      dragMode = "rel";
+      relWantSame = ev.shiftKey;
+      return;
+    }
+  
+    if (diagHeld || touchMode === "diag") {
+      /* A diagonal is drawn corner to corner, not clicked: start near a dot and
+         finish near the opposite one. The nearest dot is used, so it does not
+         have to be hit exactly. */
+      ev.preventDefault();
+      board.setPointerCapture(ev.pointerId);
+      ensureCells(room);
+      redoStack = [];
+      stroke = [];
+      dragSeen = new Set();
+      dragFrom = pt;
+      dragLast = pt;
+      diagStart = vertAt(pt.x, pt.y);
+      dragMode = "diag";
+      return;
+    }
+  
+    const paint = fillWanted(ev);
+  
+    if (paint) {
+      // colour a square
+      const cell = cellAt(pt.x, pt.y);
+      if (cell < 0) return;
+      ev.preventDefault();
+      board.setPointerCapture(ev.pointerId);
+      ensureCells(room);
+      const val = toggleTo(room.cells[cell], paint);
+      dragMode = "cell";
+      dragVal = val;
+      dragSeen = new Set([cell]);
+      stroke = [];
+      redoStack = [];
+      dragLast = pt;
+      setCellUser(cell, val, true);
+      return;
+    }
+  
+    // Pressing right on a dot is ambiguous — up to four edges are equally close,
+    // and picking one at random is what left a stray stub across a sweep. Wait
+    // for the drag to say which way it is going instead.
+    const dot = vertAt(pt.x, pt.y);
+    const onDot = Math.hypot(pt.x - (PAD + dot.c * CELL), pt.y - (PAD + dot.r * CELL)) < CELL * 0.22;
+    const i = onDot ? -1 : edgeAt(pt.x, pt.y);
+    if (i < 0 && !onDot) return;
+    ev.preventDefault();
+    board.setPointerCapture(ev.pointerId);
+    dragWant = wantsX(ev) ? XMARK : LINE;
+    dragMode = "edge";
+    dragSeen = new Set();
+    dragVert = dot;
+    stroke = [];
+    dragVal = null;
+    redoStack = [];
+    dragLast = pt;
+    if (i >= 0) {
+      dragVal = toggleTo(room.edges[i], dragWant);
+      dragSeen.add(i);
+      setEdgeUser(i, dragVal, true);
+    }
+  });
+  board.addEventListener("pointermove", ev => {
+    if (panning) return;
+    if (dragMode === null || !room) return;
+    const pt = svgPoint(ev);
+  
+    if (dragMode === "diag") {
+      dragLast = pt;
+      return; // decided when the drag ends
+    }
+    if (dragMode === "cell") {
+      alongDrag(pt, (x, y) => {
+        const cell = cellAt(x, y);
+        if (cell < 0 || dragSeen.has(cell)) return;
+        dragSeen.add(cell);
+        setCellUser(cell, dragVal, true);
+      });
+      return;
+    }
+    alongDrag(pt, (x, y) => dragTo(vertAt(x, y)));
+  });
+  board.addEventListener("pointerup", endDrag);
+  board.addEventListener("pointercancel", endDrag);
+  window.addEventListener("blur", endDrag);
+  document.addEventListener("keydown", ev => {
+    if (ev.target.tagName === "INPUT") return;
+    const cell = ev.key.toLowerCase();
+    if ((ev.metaKey || ev.ctrlKey) && cell === "z") {
+      ev.preventDefault();
+      ev.shiftKey ? doRedo() : doUndo();
+    } else if ((ev.metaKey || ev.ctrlKey) && cell === "y") {
+      ev.preventDefault();
+      doRedo();
+    }
+  });
+  (function wireTouch() {
+    const bar = document.getElementById("modebar");
+    if (!bar) return;
+  
+    const coarse =
+      (window.matchMedia && matchMedia("(pointer: coarse)").matches) ||
+      (navigator.maxTouchPoints || 0) > 0;
+    if (coarse) {
+      bar.hidden = false;
+      document.body.classList.add("touch");
+    }
+  
+    bar.querySelectorAll(".modebar__btn").forEach(btn => {
+      btn.onclick = () => {
+        touchMode = btn.dataset.mode;
+        bar.querySelectorAll(".modebar__btn").forEach(other =>
+          other.classList.toggle("is-on", other === btn),
+        );
+      };
+    });
+  })();
+  (function wirePinch() {
+    const board = document.getElementById("board");
+    if (!board) return;
+    const down = new Map();
+    let start = null;
+    let marksBefore = 0;
+  
+    const spread = () => {
+      const [a, b] = [...down.values()];
+      return {
+        dist: Math.hypot(a.x - b.x, a.y - b.y),
+        mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+      };
+    };
+  
+    board.addEventListener(
+      "pointerdown",
+      ev => {
+        if (ev.pointerType !== "touch") return;
+        if (down.size === 0) marksBefore = undoStack.length;
+        down.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+        touchesDown = down.size;
+        if (down.size === 2) {
+          const wasDrawing = !!dragMode || !!stroke;
+          dragMode = null;          // whatever was being drawn, stop
+          stroke = null;
+          /* If the first finger drew something before the second landed, take it
+             back — a pinch is not a mark. Only what this gesture added: an
+             earlier mark is not ours to undo. */
+          if (wasDrawing) while (undoStack.length > marksBefore) doUndo();
+          start = { ...spread(), view: { ...view } };
+        }
+      },
+      true,
+    );
+  
+    board.addEventListener(
+      "pointermove",
+      ev => {
+        if (!down.has(ev.pointerId)) return;
+        down.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+        if (down.size !== 2 || !start) return;
+        ev.preventDefault();
+        const now2 = spread();
+        const scale = now2.dist > 0 && start.dist > 0 ? start.dist / now2.dist : 1;
+        const box = board.getBoundingClientRect();
+        view.w = start.view.w * scale;
+        view.h = start.view.h * scale;
+        // keep the point between the fingers under the fingers
+        view.x = start.view.x + ((start.mid.x - now2.mid.x) / box.width) * view.w;
+        view.y = start.view.y + ((start.mid.y - now2.mid.y) / box.height) * view.h;
+        applyView();
+      },
+      { passive: false },
+    );
+  
+    const lift = ev => {
+      down.delete(ev.pointerId);
+      touchesDown = down.size;
+      if (down.size < 2) start = null;
+    };
+    board.addEventListener("pointerup", lift, true);
+    board.addEventListener("pointercancel", lift, true);
+  })();
+});
 
-  const lift = ev => {
-    down.delete(ev.pointerId);
-    touchesDown = down.size;
-    if (down.size < 2) start = null;
-  };
-  board.addEventListener("pointerup", lift, true);
-  board.addEventListener("pointercancel", lift, true);
-})();
+/* Ways for the rest of the program to set what this file owns. */
+function setRedoStack(value) {
+  redoStack = value;
+  return value;
+}
+function setUndoStack(value) {
+  undoStack = value;
+  return value;
+}
+function setViewFull(value) {
+  viewFull = value;
+  return value;
+}
+
+/* what other parts of the program use from here */
+export {
+  BLANK,
+  BLUE,
+  KEY_DEFAULTS,
+  LINE,
+  NOFILL,
+  XMARK,
+  YELLOW,
+  alongDrag,
+  applyStep,
+  applyView,
+  cellAt,
+  diagHeld,
+  diagStart,
+  doRedo,
+  doUndo,
+  dragFrom,
+  dragLast,
+  dragMode,
+  dragSeen,
+  dragTo,
+  dragVal,
+  dragVert,
+  dragWant,
+  edgeBetween,
+  endDrag,
+  endPan,
+  fillWanted,
+  isKey,
+  keyBinds,
+  panning,
+  redoStack,
+  relFrom,
+  relHeld,
+  relWantSame,
+  resetView,
+  saveKeys,
+  setCellUser,
+  setDiagUser,
+  setEdgeUser,
+  setKeyBind,
+  setRedoStack,
+  setRelUser,
+  setUndoStack,
+  setViewFull,
+  spaceHeld,
+  stroke,
+  svgPoint,
+  toggleTo,
+  touchMode,
+  touchesDown,
+  undoStack,
+  vertAt,
+  view,
+  viewFull,
+  wantsX,
+  zoomAt,
+};

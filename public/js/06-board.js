@@ -1,16 +1,23 @@
+import { DIFFS } from "./04-generator.js";
+import { AUTO_PENS, IDLE_MS, PENS, engine, ensureCells, flush, flushTimer, me, now, room, setFlushTimer, setSolvedShown, solvedShown, trial } from "./05-room-state.js";
+import { applyStep, redoStack, resetView, setRedoStack, setViewFull, undoStack, viewFull } from "./07-input.js";
+import { applyOwnerRules, clearBranches, flushSoon, isOwner, keepMasterFresh, ownerLabel, renderTrial } from "./08-branches.js";
+import { choosePen, editMyName, toast } from "./09-tools.js";
+import { openSetup } from "./10-setup.js";
+
 /* ============================================================
    5. Board rendering
    ============================================================ */
-const CELL = 34,
+var CELL = 34,
   PAD = 22;
-const board = document.getElementById("board");
-let segEls = [],
+var board = document.getElementById("board");
+var segEls = [],
   xEls = [],
   clueEls = [],
   dotEls = [],
   badEls = [],
   fillEls = [];
-let traceEl = null,
+var traceEl = null,
   premGroup = null,
   gDiag = null,
   gBoard = null,
@@ -59,7 +66,7 @@ function penSlot(id) {
 /* Two people can hash to the same pen. Walking to the next free one, over the
    player list sorted by id, gives everybody a different colour and gives every
    client the same answer without depending on the order people arrived. */
-let penMap = null;
+var penMap = null;
 function buildPenMap() {
   penMap = new Map();
   const players = [...((room && room.players) || [])].filter(player => player && player.id);
@@ -94,7 +101,7 @@ function buildBoard() {
   const W = C * CELL + PAD * 2,
     Hh = R * CELL + PAD * 2;
   board.setAttribute("viewBox", `0 0 ${W} ${Hh}`);
-  viewFull = { w: W, h: Hh };
+  setViewFull({ w: W, h: Hh });
   resetView();
   board.setAttribute("tabindex", "0");
   board.innerHTML = "";
@@ -321,7 +328,7 @@ function loopStatus(edges) {
   return { on, solved: true };
 }
 
-let dimClues = true,
+var dimClues = true,
   weighted = false;
 
 function render() {
@@ -409,10 +416,10 @@ function render() {
   if (info.solved && !room.solvedAt && !trial) {
     room.solvedAt = now();
     clearTimeout(flushTimer);
-    flushTimer = setTimeout(flush, 60);
+    setFlushTimer(setTimeout(flush, 60));
   }
   if (room.solvedAt && !solvedShown && !trial) {
-    solvedShown = true;
+    setSolvedShown(true);
     celebrate();
     showDone(false);
   }
@@ -431,7 +438,7 @@ function render() {
   applyOwnerRules();
 }
 
-const MARK_FILL = { 1: "var(--mark-blue)", 2: "var(--mark-yellow)" };
+var MARK_FILL = { 1: "var(--mark-blue)", 2: "var(--mark-yellow)" };
 
 /* A claim is drawn as a tie between the two squares: a plain line for "same
    side", one with a break through it for "opposite sides". */
@@ -583,7 +590,7 @@ function renderReadout(info) {
   document.getElementById("progbar").style.width = (total ? (done / total) * 100 : 0) + "%";
 }
 
-let doneAt = 0;
+var doneAt = 0;
 function fmtClock(ms) {
   const tick = Math.max(0, Math.round(ms / 1000));
   const mark = Math.floor(tick / 60);
@@ -612,80 +619,17 @@ function showDone(fromBranch) {
   el.hidden = false;
 }
 
-document.getElementById("doneStay").onclick = () => {
-  document.getElementById("done").hidden = true;
-};
+
 /* The controls are worth reading once and then in the way. Whether they are
    folded away is remembered per browser. */
-(function wireControls() {
-  const btn = document.getElementById("ctrlToggle");
-  if (!btn) return;
-  const block = btn.closest(".block");
-  const apply = shut => {
-    block.classList.toggle("block--shut", shut);
-    btn.textContent = shut ? "show" : "hide";
-    btn.setAttribute("aria-expanded", String(!shut));
-  };
-  let shut = false;
-  try {
-    shut = window.localStorage.getItem("sl:controls") === "shut";
-  } catch (edge) {}
-  apply(shut);
-  btn.onclick = edge => {
-    edge.stopPropagation();
-    shut = !shut;
-    apply(shut);
-    try {
-      window.localStorage.setItem("sl:controls", shut ? "shut" : "open");
-    } catch (edge) {}
-  };
-})();
 
-document.getElementById("creditsBtn").onclick = () => {
-  document.getElementById("credits").hidden = false;
-};
-document.getElementById("creditsClose").onclick = () => {
-  document.getElementById("credits").hidden = true;
-};
-document.addEventListener("keydown", edge => {
-  if (edge.key === "Escape") document.getElementById("credits").hidden = true;
-});
-document.getElementById("doneNew").onclick = () => {
-  document.getElementById("done").hidden = true;
-  if (!isOwner()) {
-    toast("Only " + ownerLabel() + " can change this puzzle — leave to start your own");
-    return;
-  }
-  clearBranches();
-  openSetup(true);
-};
+
+
+
+
+
 /* a completed branch is proven, not a guess, so it may go on the master */
-document.getElementById("donePromote").onclick = () => {
-  document.getElementById("done").hidden = true;
-  if (!trial) return;
-  const solved = { edges: room.edges, cells: room.cells, diag: room.diag };
-  const node = trial;
-  clearBranches();
-  const steps = [];
-  for (let i = 0; i < engine.E; i++)
-    if (solved.edges[i] !== room.edges[i])
-      steps.push({ e: i, from: room.edges[i], to: solved.edges[i] });
-  for (let cell = 0; cell < engine.NC; cell++) {
-    if (solved.cells[cell] !== room.cells[cell])
-      steps.push({ k: cell, from: room.cells[cell], to: solved.cells[cell] });
-    if (solved.diag[cell] !== room.diag[cell])
-      steps.push({ d: cell, from: room.diag[cell], to: solved.diag[cell] });
-  }
-  for (const st of steps) applyStep(st, st.to);
-  if (steps.length) {
-    undoStack.push(steps);
-    redoStack = [];
-  }
-  void node;
-  render();
-  flush();
-  toast("Solution put on the puzzle");
-};
+
 
 function celebrate() {
   toast("Loop closed. Nice work.");
@@ -731,3 +675,136 @@ function celebrate() {
     easing: "cubic-bezier(.4,0,.2,1)",
   }).onfinish = () => traceEl.setAttribute("d", "");
 }
+
+
+/* Run once the whole program is loaded, so nothing here reaches for a
+   part that has not been set up yet. */
+queueMicrotask(() => {
+  document.getElementById("doneStay").onclick = () => {
+    document.getElementById("done").hidden = true;
+  };
+  (function wireControls() {
+    const btn = document.getElementById("ctrlToggle");
+    if (!btn) return;
+    const block = btn.closest(".block");
+    const apply = shut => {
+      block.classList.toggle("block--shut", shut);
+      btn.textContent = shut ? "show" : "hide";
+      btn.setAttribute("aria-expanded", String(!shut));
+    };
+    let shut = false;
+    try {
+      shut = window.localStorage.getItem("sl:controls") === "shut";
+    } catch (edge) {}
+    apply(shut);
+    btn.onclick = edge => {
+      edge.stopPropagation();
+      shut = !shut;
+      apply(shut);
+      try {
+        window.localStorage.setItem("sl:controls", shut ? "shut" : "open");
+      } catch (edge) {}
+    };
+  })();
+  document.getElementById("creditsBtn").onclick = () => {
+    document.getElementById("credits").hidden = false;
+  };
+  document.getElementById("creditsClose").onclick = () => {
+    document.getElementById("credits").hidden = true;
+  };
+  document.addEventListener("keydown", edge => {
+    if (edge.key === "Escape") document.getElementById("credits").hidden = true;
+  });
+  document.getElementById("doneNew").onclick = () => {
+    document.getElementById("done").hidden = true;
+    if (!isOwner()) {
+      toast("Only " + ownerLabel() + " can change this puzzle — leave to start your own");
+      return;
+    }
+    clearBranches();
+    openSetup(true);
+  };
+  document.getElementById("donePromote").onclick = () => {
+    document.getElementById("done").hidden = true;
+    if (!trial) return;
+    const solved = { edges: room.edges, cells: room.cells, diag: room.diag };
+    const node = trial;
+    clearBranches();
+    const steps = [];
+    for (let i = 0; i < engine.E; i++)
+      if (solved.edges[i] !== room.edges[i])
+        steps.push({ e: i, from: room.edges[i], to: solved.edges[i] });
+    for (let cell = 0; cell < engine.NC; cell++) {
+      if (solved.cells[cell] !== room.cells[cell])
+        steps.push({ k: cell, from: room.cells[cell], to: solved.cells[cell] });
+      if (solved.diag[cell] !== room.diag[cell])
+        steps.push({ d: cell, from: room.diag[cell], to: solved.diag[cell] });
+    }
+    for (const st of steps) applyStep(st, st.to);
+    if (steps.length) {
+      undoStack.push(steps);
+      setRedoStack([]);
+    }
+    void node;
+    render();
+    flush();
+    toast("Solution put on the puzzle");
+  };
+});
+
+/* Ways for the rest of the program to set what this file owns. */
+function setDimClues(value) {
+  dimClues = value;
+  return value;
+}
+function setWeighted(value) {
+  weighted = value;
+  return value;
+}
+
+/* what other parts of the program use from here */
+export {
+  CELL,
+  MARK_FILL,
+  PAD,
+  badEls,
+  board,
+  buildBoard,
+  buildPenMap,
+  celebrate,
+  cellSatisfied,
+  clueEls,
+  dimClues,
+  doneAt,
+  dotEls,
+  edgeAt,
+  edgeGeom,
+  edgesFromColours,
+  fillEls,
+  fmtClock,
+  gBoard,
+  gDiag,
+  gRel,
+  gSegDrawn,
+  gSegGhost,
+  loopStatus,
+  paintDiagonals,
+  paintRels,
+  penMap,
+  penSlot,
+  penVar,
+  premGroup,
+  render,
+  renderRack,
+  renderReadout,
+  segEls,
+  setDimClues,
+  setMyName,
+  setMyPen,
+  setWeighted,
+  showDone,
+  solvedByColour,
+  traceEl,
+  weighted,
+  xEls,
+};

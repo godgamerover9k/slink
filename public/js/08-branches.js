@@ -1,9 +1,14 @@
+import { FLUSH_MS, engine, ensureCells, flush, flushTimer, me, now, pending, room, setFlushTimer, setTrial, trial } from "./05-room-state.js";
+import { CELL, PAD, edgeGeom, loopStatus, penSlot, premGroup, render } from "./06-board.js";
+import { redoStack, setCellUser, setDiagUser, setEdgeUser, setRedoStack, setUndoStack, undoStack } from "./07-input.js";
+import { toast } from "./09-tools.js";
+
 /* ============================================================
    6b. Branches — a tree of hypotheses. A branch is never kept:
        it is either abandoned, or disproved, and disproving it
        writes the opposite of its premise onto the branch above.
    ============================================================ */
-const trialEls = {
+var trialEls = {
   block: document.getElementById("trialBlock"),
   tag: document.getElementById("trialTag"),
   tree: document.getElementById("trialTree"),
@@ -19,14 +24,14 @@ const trialEls = {
    as the marks it *adds* to its parent rather than a whole board, which keeps
    it small enough to sync and means a change made higher up is inherited by
    everything below it for free. */
-let branches = new Map(); // id -> live node (mirrors room.tree)
-let trunk = { children: [], saved: null, undo: [], redo: [] }; // the master everyone shares
-let showPremises = true;
+var branches = new Map(); // id -> live node (mirrors room.tree)
+var trunk = { children: [], saved: null, undo: [], redo: [] }; // the master everyone shares
+var showPremises = true;
 /* `trial` (declared with the room state) holds the active node, or null on the sheet.
    Everything that pauses syncing keys off it, so the sheet only moves when null. */
 
-const FLIP = { 1: "2", 2: "1" };
-const negate = player => (player.to === "0" ? player.from : FLIP[player.to]);
+var FLIP = { 1: "2", 2: "1" };
+var negate = player => (player.to === "0" ? player.from : FLIP[player.to]);
 
 function boardSnapshot() {
   ensureCells(room);
@@ -47,8 +52,8 @@ function loadSnapshot(snap) {
 }
 
 /* ---- shared tree: room.tree is a flat map of id -> branch record ---- */
-const MARK_KEY = { edge: "e", cell: "k", diag: "d", rel: "r" };
-const MARK_STR = { e: "edges", k: "cells", d: "diag" };
+var MARK_KEY = { edge: "e", cell: "k", diag: "d", rel: "r" };
+var MARK_STR = { e: "edges", k: "cells", d: "diag" };
 
 function ensureTree(r) {
   if (!r.tree || typeof r.tree !== "object") r.tree = {};
@@ -71,6 +76,7 @@ function treeRec(node) {
     made: node.made || node.at,
     ord: node.ord,
     twin: node.twin || null,
+    adopted: node.adopted || [],
     ordAt: node.ordAt || 0,
     name: node.name || "",
     nameAt: node.nameAt || 0,
@@ -87,7 +93,7 @@ function pushTree(node) {
 }
 function flushSoon() {
   clearTimeout(flushTimer);
-  flushTimer = setTimeout(flush, FLUSH_MS);
+  setFlushTimer(setTimeout(flush, FLUSH_MS));
 }
 
 /* rebuild the live node map from the shared record */
@@ -111,6 +117,7 @@ function syncTreeFromRoom() {
       at: r.at,
       ord: r.ord,
       twin: r.twin || null,
+      adopted: r.adopted || [],
       ordAt: r.ordAt || 0,
       nameAt: r.nameAt || 0,
       mt: r.mt || {},
@@ -140,16 +147,28 @@ function syncTreeFromRoom() {
   for (const node of branches.values()) sortAt(node.children);
   if (keepId) {
     const still = branches.get(keepId);
-    trial = still || null;
+    setTrial(still || null);
     document.body.classList.toggle("trialing", !!trial);
   }
 }
 
 /* the board a branch shows: the sheet, plus every ancestor's marks, plus its own */
+/* The stack of sheets a branch is read through, master at the bottom and this
+   branch on top. A branch that has adopted another has that one slid into the
+   stack just beneath itself, so its marks show through and keep showing
+   through as it gains more — rather than being traced across once. */
 function chainOf(node) {
   const chain = [];
   for (let n = node; n; n = n.parent ? branches.get(n.parent) : null) chain.unshift(n);
-  return chain;
+  const out = [];
+  for (const n of chain) {
+    for (const id of n.adopted || []) {
+      const layer = branches.get(id);
+      if (layer && !out.includes(layer) && !chain.includes(layer)) out.push(layer);
+    }
+    out.push(n);
+  }
+  return out;
 }
 /* The master board. It is kept up to date by render while no branch is open
    (see keepMasterFresh), so this never has to guess from whatever the room
@@ -274,8 +293,8 @@ function mergeBranchRecord(into, from) {
 function propagateDown() {
   /* children derive from their parent; nothing to push */
 }
-const slotOf = node => node || trunk;
-const parentOf = node => (node && node.parent != null ? branches.get(node.parent) : null);
+var slotOf = node => node || trunk;
+var parentOf = node => (node && node.parent != null ? branches.get(node.parent) : null);
 
 function cellName(cell) {
   return "r" + (((cell / engine.C) | 0) + 1) + "c" + ((cell % engine.C) + 1);
@@ -643,13 +662,13 @@ function switchBranch(id) {
   if (!trial) trunk.saved = boardSnapshot(); // remember the master as it stands
   (trial || trunk).undo = undoStack;
   (trial || trunk).redo = redoStack;
-  trial = target;
+  setTrial(target);
   refreshBase();
-  trial = null;
+  setTrial(null);
   loadSnapshot(target ? deriveBoard(target) : trunk.saved || boardSnapshot());
-  undoStack = (target || trunk).undo || [];
-  redoStack = (target || trunk).redo || [];
-  trial = target;
+  setUndoStack((target || trunk).undo || []);
+  setRedoStack((target || trunk).redo || []);
+  setTrial(target);
   document.body.classList.toggle("trialing", !!target);
   render();
 }
@@ -723,7 +742,7 @@ function dropSubtree(node) {
 /* Settling a branch usually means trying the next idea straight away, so this
    offers to open one on the same parent. Off by default: it changes where you
    end up after pressing a button, which should be a choice. */
-let chainBranches = false;
+var chainBranches = false;
 
 function afterSettling(parentId) {
   if (!chainBranches || !room || room.solvedAt) return;
@@ -814,6 +833,7 @@ function adoptable() {
   const out = [];
   for (const node of branches.values()) {
     if (node.id === trial.id || node.id === trial.twin) continue;
+    if ((trial.adopted || []).includes(node.id)) continue;      // already in the stack
     if (isAncestor(node.id, trial) || isAncestor(trial.id, node)) continue;
     const p = node.premise;
     if (!p || p.to === "0") continue;
@@ -837,32 +857,15 @@ function adoptBranch() {
     return;
   }
   const from = ready[0];
-  const board = deriveBoard(trial);
-  const marks = from.marks || {};
-  let taken = 0;
-  for (const [kind, key] of [
-    ["edge", "e"],
-    ["cell", "k"],
-    ["diag", "d"],
-  ]) {
-    for (const at in marks[key] || {}) {
-      const idx = +at;
-      const value = marks[key][at];
-      const here =
-        kind === "edge" ? board.edges[idx] : kind === "cell" ? board.cells[idx] : board.diag[idx];
-      if (here === value) continue;
-      if (kind === "edge" && setEdgeUser(idx, value, false)) taken++;
-      else if (kind === "cell" && setCellUser(idx, value, false)) taken++;
-      else if (kind === "diag" && setDiagUser(idx, value, false)) taken++;
-    }
-  }
+  /* Not a copy: the branch is slid into this one's stack, under it and above
+     the parent. Whatever it says now, and whatever it comes to say later,
+     shows through here without being fetched again. */
+  trial.adopted = [...(trial.adopted || []), from.id];
+  pushTree(trial);
+  loadSnapshot(deriveBoard(trial));
   render();
   flush();
-  toast(
-    taken
-      ? `Took ${taken} mark${taken === 1 ? "" : "s"} from ${branchLabel(from)}`
-      : `Nothing new to take from ${branchLabel(from)}`,
-  );
+  toast(`Reading through ${branchLabel(from)} as well`);
 }
 
 function acceptBranch() {
@@ -915,9 +918,9 @@ function acceptBranch() {
       steps.push({ d: idx, from: was, to: marks.d[i] });
   }
   if (steps.length) {
-    undoStack = undoStack.slice(0, Math.max(0, undoStack.length - steps.length));
+    setUndoStack(undoStack.slice(0, Math.max(0, undoStack.length - steps.length)));
     undoStack.push(steps); // one undo takes the lot back
-    redoStack = [];
+    setRedoStack([]);
   }
   render();
   flush();
@@ -963,13 +966,13 @@ function clearBranches() {
   trunk.children = [];
   if (trial) {
     if (trunk.saved) loadSnapshot(trunk.saved);
-    undoStack = trunk.undo || [];
-    redoStack = trunk.redo || [];
+    setUndoStack(trunk.undo || []);
+    setRedoStack(trunk.redo || []);
   }
   trunk.saved = null;
   trunk.undo = [];
   trunk.redo = [];
-  trial = null;
+  setTrial(null);
   document.body.classList.remove("trialing");
 }
 
@@ -1069,12 +1072,14 @@ function renderTree() {
     btn.title = "";      // the row already says what it is
     /* The two halves of a fork are marked as a pair, and joined down the side,
        so it is plain they are one question asked both ways. */
+    /* A fork is drawn as a fork: the two halves share a bracket down their
+       left edge, one marked as the top of it and one as the foot. Words in
+       every row said the same thing far more loudly. */
     if (twinId && branches.get(twinId)) {
       btn.classList.add("tw--paired");
-      const pair = document.createElement("span");
-      pair.className = "tw__pair";
-      pair.textContent = "either way";
-      btn.appendChild(pair);
+      const twin = branches.get(twinId);
+      const first = (twin.made || twin.at || 0) > (branches.get(id).made || 0);
+      btn.classList.add(first ? "tw--pairTop" : "tw--pairFoot");
     }
     if (flag && flag.why) {
       const why = document.createElement("span");
@@ -1252,13 +1257,13 @@ function renderTrial() {
   }
 }
 
-trialEls.start.onclick = createBranch;
-trialEls.accept.onclick = acceptBranch;
-trialEls.rename.onclick = () => renameBranch(trial);
-document.getElementById("trialAdopt").onclick = adoptBranch;
-document.getElementById("trialAgreed").onclick = promoteAgreed;
-trialEls.reject.onclick = () => rejectBranch(true);
-trialEls.drop.onclick = () => rejectBranch(false);
+
+
+
+
+
+
+
 
 /* Replacing the puzzle throws away everyone's work, so it belongs to whoever
    opened the sheet. Rooms made before this existed have no owner recorded and
@@ -1292,3 +1297,104 @@ function applyOwnerRules() {
     btn.title = "";
   }
 }
+
+
+/* Run once the whole program is loaded, so nothing here reaches for a
+   part that has not been set up yet. */
+queueMicrotask(() => {
+  trialEls.start.onclick = createBranch;
+  trialEls.accept.onclick = acceptBranch;
+  trialEls.rename.onclick = () => renameBranch(trial);
+  document.getElementById("trialAdopt").onclick = adoptBranch;
+  document.getElementById("trialAgreed").onclick = promoteAgreed;
+  trialEls.reject.onclick = () => rejectBranch(true);
+  trialEls.drop.onclick = () => rejectBranch(false);
+});
+
+/* Ways for the rest of the program to set what this file owns. */
+function setBranches(value) {
+  branches = value;
+  return value;
+}
+function setChainBranches(value) {
+  chainBranches = value;
+  return value;
+}
+function setShowPremises(value) {
+  showPremises = value;
+  return value;
+}
+
+/* what other parts of the program use from here */
+export {
+  FLIP,
+  MARK_KEY,
+  MARK_STR,
+  OWNER_ONLY,
+  acceptBranch,
+  adoptBranch,
+  adoptable,
+  afterSettling,
+  agreedBetween,
+  applyOwnerRules,
+  baseBoardOf,
+  boardSnapshot,
+  branchLabel,
+  branches,
+  cellName,
+  cellsAtVert,
+  chainBranches,
+  chainOf,
+  clearBranches,
+  createBranch,
+  deriveBoard,
+  dropSubtree,
+  dropWithTwin,
+  ensureTree,
+  findTrouble,
+  flushSoon,
+  inverseOf,
+  isAncestor,
+  isOwner,
+  keepMasterFresh,
+  loadSnapshot,
+  makeTwin,
+  markCount,
+  mergeBranchRecord,
+  nearName,
+  negate,
+  newBranchId,
+  notePremise,
+  openPath,
+  ownerLabel,
+  paintPremises,
+  parentOf,
+  premiseHolds,
+  premiseLabel,
+  premiseTaken,
+  promoteAgreed,
+  propagateDown,
+  pushTree,
+  recordMark,
+  refreshBase,
+  rejectBranch,
+  renameBranch,
+  renderTree,
+  renderTrial,
+  reorderBranch,
+  setBranches,
+  setChainBranches,
+  setShowPremises,
+  settledAbove,
+  sheetBoard,
+  showPremises,
+  slotOf,
+  switchBranch,
+  syncTreeFromRoom,
+  treeRec,
+  trialEls,
+  trunk,
+  twinOf,
+  undoesPremise,
+  unmakePremise,
+};

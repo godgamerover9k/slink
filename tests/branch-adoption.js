@@ -54,6 +54,24 @@ const ck=(n,a,b)=>{const ok=JSON.stringify(a)===JSON.stringify(b);ok?pass++:fail
  ev('switchBranch(null)');
  ck("the master did not take the adopted marks", ev(`room.edges[${workOne}]`), '0');
 
+ console.log('\n--- it stays adopted ---');
+ // more work on the branch that was adopted
+ ev(`switchBranch(${q(A)})`);
+ const later=ev('engine.H(7,3)');
+ ev(`setEdgeUser(${later},"1",false)`);
+ ev(`switchBranch(${q(B)})`);
+ ck('later work shows through without adopting again', ev(`room.edges[${later}]`), '1');
+ ck('and it is not offered a second time',
+    ev(`adoptable().some(n=>n.id===${q(A)})`), false);
+ ev('render()');
+ ck('the button is not still asking', $('trialAdopt').hidden, true);
+
+ // and taking work back there takes it back here
+ ev(`switchBranch(${q(A)})`);
+ ev(`setEdgeUser(${later},"0",false)`);
+ ev(`switchBranch(${q(B)})`);
+ ck('taking it back there takes it back here too', ev(`room.edges[${later}]`), '0');
+
  console.log('\n--- what it will not adopt ---');
  $('trialStart').click();
  const C=ev('trial.id');
@@ -61,7 +79,14 @@ const ck=(n,a,b)=>{const ok=JSON.stringify(a)===JSON.stringify(b);ok?pass++:fail
  $('trialStart').click();                                // a child of C
  ev(`setEdgeUser(${ev('engine.V(7,2)')},"1",false)`);
  ev(`switchBranch(${q(C)})`); ev('render()');
- ck('not its own offshoot', $('trialAdopt').hidden, true);
+ // the button may be offering some other branch; what matters is that a
+ // branch's own offshoot is never among them — it is already in the stack
+ const kid=ev('[...branches.values()].find(n=>n.parent)&&[...branches.values()].filter(n=>n.parent)[0].id');
+ ck('a branch is never offered its own offshoot',
+    ev(`adoptable().some(n=>n.parent===trial.id)`), false);
+ ck('nor anything it descends from',
+    ev(`adoptable().some(n=>isAncestor(n.id, trial))`), false);
+ void kid;
  console.log(`\n${pass} passed, ${fail} failed`);
  process.exit(fail?1:0);
 })();

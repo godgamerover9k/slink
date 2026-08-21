@@ -1,3 +1,5 @@
+import { OFF, ON } from "./01-engine.js";
+
 /* ============================================================
    2b. SAT — a small CDCL solver, and Slitherlink expressed for it
 
@@ -407,3 +409,13 @@ function satCount(engine, clues, limit, budget) {
   }
   return { count, solution, aborted: false, nodes: CELL.conflicts };
 }
+
+/* what other parts of the program use from here */
+export {
+  SatSolver,
+  combos,
+  countSolutions,
+  edgeLoops,
+  satClauses,
+  satCount,
+};

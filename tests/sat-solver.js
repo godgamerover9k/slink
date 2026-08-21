@@ -5,9 +5,8 @@
 const fs=require('fs'),vm=require('vm');
 const path=require('path');
 /* the engine, solver, SAT and generator, straight from the script files */
-const src=['01-engine','02-solver','03-sat','04-generator']
-  .map(n=>fs.readFileSync(path.join(__dirname,'..','public','js',n+'.js'),'utf8')).join('\n');
-const core=src.slice(0,src.indexOf('/* ============================================================\n   4. Shared sheet state'));
+const src=require('./pageload.js').plainScript(['01-engine','02-solver','03-sat','04-generator'], __dirname);
+const core=src;
 const ctx=vm.createContext({performance:require('perf_hooks').performance,setTimeout,console,Math,Date,Int8Array,Int32Array,Uint8Array,Float64Array,Map,Set,Promise,Error,Array,Number,JSON});
 vm.runInContext(core+'\nthis.API={Engine,Solver,satCount,SatSolver,satClauses,edgeLoops,growLoop,loopEdges,cluesFromLoop,ON,OFF};',ctx);
 const A=ctx.API;

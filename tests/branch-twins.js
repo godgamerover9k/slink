@@ -49,8 +49,11 @@ const ck=(n,a,b)=>{const ok=JSON.stringify(a)===JSON.stringify(b);ok?pass++:fail
  ev('switchBranch(null)'); ev('render()');
  const paired=[...window.document.querySelectorAll('.tw--paired')];
  ck('both rows are marked as a pair', paired.length, 2);
- ck('and say so in words',
-    paired.every(r=>/either way/i.test(r.textContent)), true);
+ ck('one is drawn as the top of the bracket and one as the foot',
+    [paired.filter(r=>r.classList.contains('tw--pairTop')).length,
+     paired.filter(r=>r.classList.contains('tw--pairFoot')).length], [1,1]);
+ ck('and no words are needed for it',
+    paired.every(r=>!/either way/i.test(r.textContent)), true);
 
  console.log('\n--- taking the assumption back unmakes the pair ---');
  ev(`switchBranch(${q(A)})`);
@@ -87,6 +90,24 @@ const ck=(n,a,b)=>{const ok=JSON.stringify(a)===JSON.stringify(b);ok?pass++:fail
  await wait(80);
  ck('a different square is fine', ev('trial.premise && trial.premise.idx'), Y);
  const C=ev('trial.id');
+
+ console.log('\n--- a guess cannot be swapped for another ---');
+ ev('switchBranch(null)');
+ $('trialStart').click();
+ const S=ev('engine.V(2,7)');
+ ev(`setEdgeUser(${S},"1",false)`);
+ await wait(80);
+ const swapMe=ev('trial.id'), swapTwin=ev('trial.twin');
+ const before=ev('branches.size');
+ ev(`setEdgeUser(${S},"2",false)`);
+ await wait(80);
+ ck('the assumption is unchanged', ev('trial.premise.to'), '1');
+ ck('and says what to do', /Clear this branch/i.test($('toast').textContent), true);
+ ck('no second pair was made', ev('trial.twin'), swapTwin);
+ ck('no branches were added', ev('branches.size'), before);
+ ev(`switchBranch(${q(swapMe)})`);
+ $('trialDrop').click();
+ await wait(100);
 
  console.log('\n--- and the same by pressing undo ---');
  ev('switchBranch(null)');

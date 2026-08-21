@@ -1,20 +1,26 @@
+import { Engine } from "./01-engine.js";
+import { buildBoard, penSlot, render } from "./06-board.js";
+import { redoStack, setRedoStack, setUndoStack, undoStack } from "./07-input.js";
+import { boardSnapshot, branches, deriveBoard, ensureTree, flushSoon, loadSnapshot, mergeBranchRecord, notePremise, premiseTaken, recordMark, refreshBase, setBranches, settledAbove, syncTreeFromRoom, trunk, undoesPremise, unmakePremise } from "./08-branches.js";
+import { toast } from "./09-tools.js";
+
 /* ============================================================
    4. Shared puzzle state
    ============================================================ */
 /* Graphite is last so it is never handed out automatically — nobody is given
    black by chance, but anyone can choose it. */
-const PENS = ["--pen-1", "--pen-2", "--pen-3", "--pen-4", "--pen-5", "--pen-6", "--graphite"];
-const AUTO_PENS = 6;
-const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-const ROOM_KEY = c => "sl:room:" + c;
-const INDEX_KEY = "sl:index";
-const ME_KEY = "sl:me";
-const POLL_MS = 3000,
+var PENS = ["--pen-1", "--pen-2", "--pen-3", "--pen-4", "--pen-5", "--pen-6", "--graphite"];
+var AUTO_PENS = 6;
+var ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+var ROOM_KEY = c => "sl:room:" + c;
+var INDEX_KEY = "sl:index";
+var ME_KEY = "sl:me";
+var POLL_MS = 3000,
   FLUSH_MS = 380,
   HEARTBEAT_MS = 18000,
   IDLE_MS = 45000;
 
-const store = {
+var store = {
   /* Three ways to keep a puzzle, tried in order:
        artifact - window.storage, which only exists in the Claude runtime
        http     - a slink-gen room server, when the page is served from one
@@ -189,31 +195,31 @@ const store = {
   },
 };
 
-let me = null; // {id,name}
-let room = null; // last merged shared state
-let engine = null; // engine for the current puzzle
-let pending = []; // ops not yet written
-let recent = []; // ops kept briefly so a lost write can heal
-let trial = null; // snapshot of the puzzle while a branch is being tried
-let tOffset = 0; // clock alignment with other pens
-let pollTimer = null,
+var me = null; // {id,name}
+var room = null; // last merged shared state
+var engine = null; // engine for the current puzzle
+var pending = []; // ops not yet written
+var recent = []; // ops kept briefly so a lost write can heal
+var trial = null; // snapshot of the puzzle while a branch is being tried
+var tOffset = 0; // clock alignment with other pens
+var pollTimer = null,
   indexTimer = null,
   flushTimer = null,
   writing = false,
   lastWrite = 0;
-let solvedShown = false;
+var solvedShown = false;
 
 /* strictly increasing: two marks inside the same millisecond would otherwise
    tie on the last-write-wins check and the second would be dropped */
-let lastNow = 0;
-const now = () => {
+var lastNow = 0;
+var now = () => {
   const t = Math.max(Date.now() + tOffset, lastNow + 1);
   lastNow = t;
   return t;
 };
-const randCode = () =>
+var randCode = () =>
   Array.from({ length: 4 }, () => ALPHABET[(Math.random() * ALPHABET.length) | 0]).join("");
-const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+var uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 
 function blankRoom(code, puz) {
   const gg = Engine(puz.R, puz.C);
@@ -324,13 +330,13 @@ function adopt(remote) {
     engine = Engine(room.R, room.C);
     pending = [];
     recent = [];
-    undoStack = [];
-    redoStack = [];
+    setUndoStack([]);
+    setRedoStack([]);
     solvedShown = !!room.solvedAt;
     trial = null;
     document.body.classList.remove("trialing");
     trunk.saved = null;
-    branches = new Map();
+    setBranches(new Map());
     trunk.children = [];
     buildBoard();
     syncTreeFromRoom();
@@ -547,16 +553,17 @@ function queueOp(edge, val) {
       toast("The branch above already decided this. A branch can only add to it.");
       return false;
     }
-    /* Undoing the assumption itself, with nothing else on the branch:
-       allowed, and it unmakes the pair rather than stranding the twin. */
-    if (
-      trial.premise &&
-      trial.premise.kind === "edge" &&
-      trial.premise.idx === edge &&
-      value !== trial.premise.to &&
-      !undoesPremise("edge", edge, value)
-    )
-      unmakePremise(trial);
+    /* The assumption can be taken back, but not swapped for another.
+       Changing it in place left the old fork standing beside the new
+       one — clear it and guess again, which unmakes the pair first. */
+    if (trial.premise && trial.premise.kind === "edge" && trial.premise.idx === edge) {
+      if (value === trial.premise.to) return false;
+      if (value !== "0") {
+        toast("Clear this branch's assumption before guessing something else");
+        return false;
+      }
+      if (!undoesPremise("edge", edge, value)) unmakePremise(trial);
+    }
     if (undoesPremise("edge", edge, value)) {
       toast("That is this branch's assumption. Clear the rest of the branch first.");
       return false;
@@ -639,16 +646,17 @@ function queueCell(cell, val) {
       toast("The branch above already decided this. A branch can only add to it.");
       return false;
     }
-    /* Undoing the assumption itself, with nothing else on the branch:
-       allowed, and it unmakes the pair rather than stranding the twin. */
-    if (
-      trial.premise &&
-      trial.premise.kind === "cell" &&
-      trial.premise.idx === cell &&
-      value !== trial.premise.to &&
-      !undoesPremise("cell", cell, value)
-    )
-      unmakePremise(trial);
+    /* The assumption can be taken back, but not swapped for another.
+       Changing it in place left the old fork standing beside the new
+       one — clear it and guess again, which unmakes the pair first. */
+    if (trial.premise && trial.premise.kind === "cell" && trial.premise.idx === cell) {
+      if (value === trial.premise.to) return false;
+      if (value !== "0") {
+        toast("Clear this branch's assumption before guessing something else");
+        return false;
+      }
+      if (!undoesPremise("cell", cell, value)) unmakePremise(trial);
+    }
     if (undoesPremise("cell", cell, value)) {
       toast("That is this branch's assumption. Clear the rest of the branch first.");
       return false;
@@ -703,3 +711,107 @@ async function updateIndex() {
   for (const cell of Object.keys(idx)) if (!idx[cell] || idx[cell].updated < cut) delete idx[cell];
   await store.set(INDEX_KEY, JSON.stringify(idx), true);
 }
+
+/* Ways for the rest of the program to set what this file owns. */
+function setEngine(value) {
+  engine = value;
+  return value;
+}
+function setFlushTimer(value) {
+  flushTimer = value;
+  return value;
+}
+function setIndexTimer(value) {
+  indexTimer = value;
+  return value;
+}
+function setLastWrite(value) {
+  lastWrite = value;
+  return value;
+}
+function setMe(value) {
+  me = value;
+  return value;
+}
+function setPending(value) {
+  pending = value;
+  return value;
+}
+function setPollTimer(value) {
+  pollTimer = value;
+  return value;
+}
+function setRecent(value) {
+  recent = value;
+  return value;
+}
+function setRoom(value) {
+  room = value;
+  return value;
+}
+function setSolvedShown(value) {
+  solvedShown = value;
+  return value;
+}
+function setTrial(value) {
+  trial = value;
+  return value;
+}
+
+/* what other parts of the program use from here */
+export {
+  ALPHABET,
+  AUTO_PENS,
+  FLUSH_MS,
+  HEARTBEAT_MS,
+  IDLE_MS,
+  INDEX_KEY,
+  ME_KEY,
+  PENS,
+  POLL_MS,
+  ROOM_KEY,
+  adopt,
+  applyOp,
+  blankRoom,
+  engine,
+  ensureCells,
+  flush,
+  flushTimer,
+  indexTimer,
+  lastNow,
+  lastWrite,
+  me,
+  mergePlayers,
+  now,
+  pending,
+  playerIdx,
+  poll,
+  pollTimer,
+  queueCell,
+  queueDiag,
+  queueOp,
+  queueRel,
+  randCode,
+  recent,
+  relKey,
+  room,
+  setEngine,
+  setFlushTimer,
+  setIndexTimer,
+  setLastWrite,
+  setMe,
+  setPending,
+  setPollTimer,
+  setRecent,
+  setRoom,
+  setSolvedShown,
+  setTrial,
+  solvedShown,
+  store,
+  tOffset,
+  touchMe,
+  trial,
+  uid,
+  updateIndex,
+  writing,
+};

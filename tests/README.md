@@ -9,9 +9,15 @@ than what it is meant to do. Most exist because something got through once.
     npm test                         # everything that does not need a port
     node tests/branches.js           # one file
 
-Run them from the repository root. In the browser the page arrives as
-`index.html` plus a stylesheet plus a folder of scripts; `pageload.js` stitches
-those back into one document so a test sees what a browser sees.
+`npm test` runs four at a time — around three minutes for the lot. Each test
+builds its own page and talks to nobody else, so they do not need to wait in
+line.
+
+Run them from the repository root. In the browser the program is a set of ES
+modules; jsdom cannot run those, so `pageload.js` strips the imports and
+exports and stitches the files into one script, in the order `main.js` lists
+them. The page itself is left as modules — only the tests see the stitched
+version.
 
 The suites that start a server bind a port, so two of them cannot run at once.
 `npm test` leaves them out; run those one at a time:

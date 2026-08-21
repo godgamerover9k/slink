@@ -29,6 +29,14 @@ Pushing to the repository deploys it.
 
 ## How it fits together
 
+**It is a set of ES modules.** `public/js/main.js` names them in the order they
+have always loaded, and each file says what it needs from the others. Two
+things follow from a dozen files importing each other both ways: anything a
+file *does* on the way past — wiring a button, listening for a key — waits in
+a `queueMicrotask` until the whole program is loaded, and a value one file owns
+is set by others through a `setX` function, because what you import is
+read-only.
+
 **The page is the program.** All the thinking — the grid, the solver, the SAT
 solver, the generator, the branch tree — runs in the browser. Nothing is
 computed on the server.
